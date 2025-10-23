@@ -1,0 +1,14 @@
+MANIFEST.in
+README.md
+VERSION
+requirements.txt
+setup.py
+botCTE/__init__.py
+botCTE/__main__.py
+botCTE/bot.py
+botCTE.egg-info/PKG-INFO
+botCTE.egg-info/SOURCES.txt
+botCTE.egg-info/dependency_links.txt
+botCTE.egg-info/requires.txt
+botCTE.egg-info/top_level.txt
+botCTE/resources/start.png
