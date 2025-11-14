@@ -201,7 +201,6 @@ class Bot(DesktopBot):
             self.not_found("confirmNAT")
         self.click()
 
-
     def part3_complimentary(self,
                             cte=None
                             ):
@@ -394,6 +393,7 @@ class Bot(DesktopBot):
         #     status=AutomationTaskFinishStatus.SUCCESS,
         #     message="Task Finished OK."
         # )
+
 
 
 if __name__ == '__main__':

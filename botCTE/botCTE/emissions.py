@@ -1,10 +1,47 @@
 import datetime as dt
 import os
 import time
-
+from datetime import datetime
+import requests
 import numpy as np
 import bot
 from functions import *
+from botcity.core import DesktopBot
+
+r = RequestDataFrame()
+
+state_capitals = {
+    'AC':    'Rio Branco',     'ACRE':                    'Rio Branco',
+    'AL':    'Maceió',         'ALAGOAS':                 'Maceió',
+    'AP':    'Macapá',         'AMAPÁ':                   'Macapá',
+    'AM':    'Manaus',         'AMAZONAS':                'Manaus',
+    'BA':    'Salvador',       'BAHIA':                   'Salvador',
+    'CE':    'Fortaleza',      'CEARÁ':                   'Fortaleza',
+    'DF':    'Brasília',       'DISTRITO FEDERAL':        'Brasília',
+    'ES':    'Vitória',        'ESPÍRITO SANTO':          'Vitória',
+    'GO':    'Goiânia',        'GOIÁS':                   'Goiânia',
+    'MA':    'São Luís',       'MARANHÃO':                'São Luís',
+    'MT':    'Cuiabá',         'MATO GROSSO':             'Cuiabá',
+    'MS':    'Campo Grande',   'MATO GROSSO DO SUL':      'Campo Grande',
+    'MG':    'Belo Horizonte', 'MINAS GERAIS':            'Belo Horizonte',
+    'PA':    'Belém',          'PARÁ':                    'Belém',
+    'PB':    'João Pessoa',    'PARAÍBA':                 'João Pessoa',
+    'PR':    'Curitiba',       'PARANÁ':                  'Curitiba',
+    'PE':    'Recife',         'PERNAMBUCO':              'Recife',
+    'PI':    'Teresina',       'PIAUÍ':                   'Teresina',
+    'RJ':    'Rio de Janeiro', 'RIO DE JANEIRO':          'Rio de Janeiro',
+    'RN':    'Natal',          'RIO GRANDE DO NORTE':     'Natal',
+    'RS':    'Porto Alegre',   'RIO GRANDE DO SUL':       'Porto Alegre',
+    'RO':    'Porto Velho',    'RONDÔNIA':                'Porto Velho',
+    'RR':    'Boa Vista',      'RORAIMA':                 'Boa Vista',
+    'SC':    'Florianópolis',  'SANTA CATARINA':          'Florianópolis',
+    'SP':    'São Paulo',      'SÃO PAULO':               'São Paulo',
+    'SE':    'Aracaju',        'SERGIPE':                 'Aracaju',
+    'TO':    'Palmas',         'TOCANTINS':               'Palmas',
+}
+
+uf_base = pd.read_excel('Complementares.xlsx', sheet_name='Plan1')
+aliquota_base = pd.read_excel('Alíquota.xlsx', sheet_name='Planilha1')
 
 
 def cte_list(start_date, final_date, folderpath, cte_folder, root):
@@ -506,29 +543,28 @@ def cte_complimentary(start_date, final_date, cte_comp_path, cte_folder, root, u
     di_formatted = dt.datetime.strftime(di_temp, '%Y-%m-%d')
     df_formatted = dt.datetime.strftime(df_temp, '%Y-%m-%d')
 
+    pl = {
+        "customer_id": None,
+        "startDate": f"{di_formatted}",
+        "endDate": f"{df_formatted}",
+    }
+
+    print("Requisitando relatório de faturamento")
+
+    services_billing = r.request_private(
+        link='https://transportebiologico.com.br/api/report/billing/data',
+        request_type='post',
+        payload=pl,
+        nested=True
+    )
+
+    print("Requisitando tabelas principais")
+
     address = r.request_public('https://transportebiologico.com.br/api/public/address')
     services_ongoing = r.request_public('https://transportebiologico.com.br/api/public/service')
     services_finalized = r.request_public(
         link=f'https://transportebiologico.com.br/api/public/service/finalized/?startFilter={di}&endFilter={df}',
         request_type='post'
-    )
-
-    pl = {
-
-        "shipping_id": None,
-        "is_driver": False,
-        "customer_id": None,
-        "collector_id": None,
-        "startFilter": f"{di_formatted}T00:00:00.000-03:00",
-        "endFilter": f"{df_formatted}T23:59:00.000-03:00",
-        "is_customer": False,
-        "is_collector": False
-    }
-
-    services_billing = r.request_private(
-        link='https://transportebiologico.com.br/api/report/billing',
-        request_type='post',
-        payload=pl
     )
 
     sv = pd.concat([services_ongoing, services_finalized], ignore_index=True)
@@ -1974,37 +2010,314 @@ def run_emissions():
     pass
 
 
-r = RequestDataFrame()
+#### ABA CANCELAMENTO ##############################################
 
-state_capitals = {
-    'AC':    'Rio Branco',     'ACRE':                    'Rio Branco',
-    'AL':    'Maceió',         'ALAGOAS':                 'Maceió',
-    'AP':    'Macapá',         'AMAPÁ':                   'Macapá',
-    'AM':    'Manaus',         'AMAZONAS':                'Manaus',
-    'BA':    'Salvador',       'BAHIA':                   'Salvador',
-    'CE':    'Fortaleza',      'CEARÁ':                   'Fortaleza',
-    'DF':    'Brasília',       'DISTRITO FEDERAL':        'Brasília',
-    'ES':    'Vitória',        'ESPÍRITO SANTO':          'Vitória',
-    'GO':    'Goiânia',        'GOIÁS':                   'Goiânia',
-    'MA':    'São Luís',       'MARANHÃO':                'São Luís',
-    'MT':    'Cuiabá',         'MATO GROSSO':             'Cuiabá',
-    'MS':    'Campo Grande',   'MATO GROSSO DO SUL':      'Campo Grande',
-    'MG':    'Belo Horizonte', 'MINAS GERAIS':            'Belo Horizonte',
-    'PA':    'Belém',          'PARÁ':                    'Belém',
-    'PB':    'João Pessoa',    'PARAÍBA':                 'João Pessoa',
-    'PR':    'Curitiba',       'PARANÁ':                  'Curitiba',
-    'PE':    'Recife',         'PERNAMBUCO':              'Recife',
-    'PI':    'Teresina',       'PIAUÍ':                   'Teresina',
-    'RJ':    'Rio de Janeiro', 'RIO DE JANEIRO':          'Rio de Janeiro',
-    'RN':    'Natal',          'RIO GRANDE DO NORTE':     'Natal',
-    'RS':    'Porto Alegre',   'RIO GRANDE DO SUL':       'Porto Alegre',
-    'RO':    'Porto Velho',    'RONDÔNIA':                'Porto Velho',
-    'RR':    'Boa Vista',      'RORAIMA':                 'Boa Vista',
-    'SC':    'Florianópolis',  'SANTA CATARINA':          'Florianópolis',
-    'SP':    'São Paulo',      'SÃO PAULO':               'São Paulo',
-    'SE':    'Aracaju',        'SERGIPE':                 'Aracaju',
-    'TO':    'Palmas',         'TOCANTINS':               'Palmas',
-}
 
-uf_base = pd.read_excel('Complementares.xlsx', sheet_name='Plan1')
-aliquota_base = pd.read_excel('Alíquota.xlsx', sheet_name='Planilha1')
+# ============================
+# Robô principal com passo a passo visual
+# ============================
+
+class Bot(DesktopBot):
+    def action(self, data_inicial, data_final, execution=None):
+        # 🔄 Consulta os CT-es via API
+        self.ctes_recebidos = consultar_ctes_para_cancelar(data_inicial, data_final)
+
+        # 🔁 Cria um dicionário com {cte_loglife: protocolo}
+        mapa_ctes = {
+            item["cte_loglife"].strip(): str(item["protocol"])
+            for item in self.ctes_recebidos
+            if item.get("cte_loglife") and item.get("protocol")
+        }
+
+        # 📋 Lista de CT-es a processar
+        lista_ctes = list(mapa_ctes.keys())
+
+        if not lista_ctes:
+            print("⚠️ Nenhum CT-e encontrado para cancelamento.")
+            input("\n⏹️ Pressione Enter para fechar...")
+            return
+
+        print(f"\n🔁 Iniciando cancelamento de {len(lista_ctes)} CT-es")
+
+        ctes_canceladas = []
+        ctes_com_erro = []
+
+        # 🧭 Etapas iniciais da interface
+        # if not self.find("1emissao_de_cte", matching=0.97, waiting_time=60000):
+        #     self.not_found("1emissao_de_cte")
+        #     return
+        # self.click()
+        # self.wait(1500
+
+        # 🔁 Laço principal com os CT-es da API
+        for numero_cte in lista_ctes:
+
+            if not self.find("1emissao_de_cte", matching=0.97, waiting_time=30000):
+                self.not_found("1emissao_de_cte")
+                return
+            self.click()
+            self.wait(500)
+
+            # 🧹 Limpeza inicial do campo (apenas uma vez)
+            if self.find("3N_Ct-e", matching=0.97, waiting_time=5000):
+                self.click_relative(x=20, y=20, clicks=2, interval_between_clicks=200)
+                self.backspace()
+                self.wait(500)
+
+            if not str(numero_cte).isdigit():
+                print(f"⚠️ CT-e ignorado (não numérico): {numero_cte}")
+
+            print(f"\n🔄 Processando CT-e: {numero_cte}")
+
+            try:
+                # 3.2 Digitar número da CT-e
+                self.type_keys(numero_cte)
+                self.wait(500)
+
+                # 4. Clicar em localizar
+                if not self.find("4Localizar", matching=0.97, waiting_time=5000):
+                    raise Exception("Elemento '4Localizar' não encontrado")
+                self.click()
+                self.wait(1500)
+
+                # 5. Duplo clique em status
+                if not self.find("5duploClickStatus", matching=0.97, waiting_time=5000):
+                    raise Exception("Elemento '5duploClickStatus' não encontrado")
+                self.double_click()
+                self.wait(1000)
+
+                # 5.1 Se não avançar, tenta a próxima tela
+                if not self.find("5.1ct-e", matching=0.97, waiting_time=10000):
+                    raise Exception("Elemento '5.1ct-e' não encontrado")
+                self.click()
+                self.wait(1500)
+
+                # 5.2 Clica em cancelar cte
+                if not self.find("5.2Cancelar_CTE", matching=0.97, waiting_time=10000):
+                    raise Exception("Elemento '5.2Cancelar_CTE' não encontrado")
+                self.click()
+                self.wait(1000)
+
+                # Escreve o motivo do cancelamento
+                self.type_keys("transporte cancelado")
+                self.wait(1000)
+
+                # Clica em confirmar
+                if not self.find("8confirmar", matching=0.97, waiting_time=10000):
+                    raise Exception("Elemento '8confirmar' não encontrado")
+                self.click()
+                self.wait(6000)
+
+                # 🔄 Envia o protocolo com campos nulos para a API
+                protocolo = mapa_ctes.get(str(numero_cte).strip())
+                if not protocolo:
+                    print(f"⚠️ Protocolo ausente para CT-e {numero_cte}")
+                    raise Exception(f"Protocolo não encontrado para o CT-e {numero_cte}")
+
+                payload = {
+                    "data": [
+                        {
+                            "protocol": str(protocolo),
+                            "cte_loglife": None,
+                            "cte_loglife_emission_date": None
+                        }
+                    ]
+                }
+
+                try:
+                    r.request_private(
+                        link="https://transportebiologico.com.br/api/uploads/cte-loglife/json",
+                        request_type="post",
+                        payload=payload,
+                        json=True
+                    )
+                    print(f"📤 Protocolopayload {protocolo} enviado com sucesso com CT-e nulo.")
+                except Exception as api_error:
+                    print(f"❌ Erro ao enviar protocolo {protocolo}: {api_error}")
+
+                self.wait(2000)
+
+                # 🖱️ Clique na confirmação de sucesso
+                if self.find("9-sucesso", matching=0.97, waiting_time=20000):
+                    self.enter()
+                    print("✅ Pop-up de sucesso confirmado.")
+                else:
+                    raise Exception("Pop-up '9-sucesso' não encontrado.")
+
+                print(f"✅ CT-e {numero_cte} cancelado com sucesso")
+                ctes_canceladas.append(numero_cte)
+
+            except Exception as e:
+                print(f"⚠️ Erro no processamento do CT-e {numero_cte}: {str(e)}")
+                ctes_com_erro.append(numero_cte)
+                # Adicionar uma lógica para resetar a tela se der erro, como voltar para a consulta
+
+        print(f"\n📊 Cancelamento concluído.")
+        print(f"✅ CT-es cancelados: {len(ctes_canceladas)} -> {ctes_canceladas}")
+        print(f"⚠️ CT-es com erro: {len(ctes_com_erro)} -> {ctes_com_erro}")
+
+    def not_found(self, label):
+        print(f"❌ Elemento não encontrado: {label}")
+
+
+# ============================
+# Funções auxiliares
+# ============================
+
+def formatar_data(data):
+    if isinstance(data, str):
+        for formato in ("%d/%m/%Y", "%Y-%m-%d"):
+            try:
+                return datetime.strptime(data, formato).strftime("%Y-%m-%d")
+            except ValueError:
+                continue
+        print(f"❌ Data inválida: {data}")
+        return None
+    elif hasattr(data, "strftime"):
+        return data.strftime("%Y-%m-%d")
+    return str(data)
+
+
+def consultar_ctes_para_cancelar(data_inicial, data_final):
+    di_formatted = formatar_data(data_inicial)
+    df_formatted = formatar_data(data_final)
+
+    if not di_formatted or not df_formatted:
+        print("❌ Datas inválidas. Cancelando consulta.")
+        return []
+
+    print(f"📅 Consultando cancelamentos entre {di_formatted} e {df_formatted}")
+
+    r = RequestDataFrame()
+    try:
+        df = r.request_public(
+            link=f'https://transportebiologico.com.br/api/public/service/cancelled-unsuccessful?initialDate={di_formatted}&finalDate={df_formatted}'
+        )
+
+        if "services" in df.columns and not df.empty:
+            lista_servicos = df.iloc[0]["services"]
+            if not isinstance(lista_servicos, list):
+                print("⚠️ 'services' não contém uma lista. Nenhum CT-e extraído.")
+                return []
+
+            print(f"\n📋 {len(lista_servicos)} serviços encontrados na API.")
+
+            lista_filtrada = [
+                item for item in lista_servicos
+                if "cte_loglife" in item and item["cte_loglife"] and str(item["cte_loglife"]).strip() not in ["-", ""]
+            ]
+            print(f"✅ {len(lista_filtrada)} CT-es válidos para processamento.")
+            return lista_filtrada
+
+        print("⚠️ Estrutura de retorno da API inesperada. Nenhum CT-e extraído.")
+        return []
+    except Exception as e:
+        print(f"❌ Erro ao consultar API: {e}")
+        return []
+
+
+# ============================
+# Cancelamento avulso (botão: cancelar_avulso_cte)
+# ============================
+
+def cancelar_avulso_cte(numero_cte, protocolo):
+    bot = Bot()
+    print(f"\n🔄 Iniciando cancelamento avulso para o CT-e: {numero_cte}")
+
+    try:
+        # 🧭 Etapas iniciais da interface
+        if not bot.find("1emissao_de_cte", matching=0.97, waiting_time=60000):
+            raise Exception("Elemento '1emissao_de_cte' não encontrado")
+        bot.click()
+        bot.wait(1500)
+
+        if not bot.find("2consultas", matching=0.97, waiting_time=30000):
+            raise Exception("Elemento '2consultas' não encontrado")
+        bot.click()
+        bot.wait(500)
+
+        # 🧹 Limpeza do campo
+        if not bot.find("10ClicarBordaInferior", matching=0.97, waiting_time=5000):
+            raise Exception("Campo para digitar CT-e não encontrado ('10ClicarBordaInferior')")
+        x, y, w, h = bot.get_last_element()
+        bot.click_at(x + int(w * 0.5), y + h - 1)
+        bot.wait(500)
+        bot.control_a()
+        bot.wait(300)
+        bot.delete()
+        bot.wait(100)
+
+        # 3.2 Digitar número da CT-e
+        bot.type_keys(str(numero_cte))
+        bot.wait(2000)
+
+        # 4. Clicar em localizar e seguir o fluxo
+        if not bot.find("4Localizar", matching=0.97, waiting_time=5000):
+            raise Exception("Elemento '4Localizar' não encontrado")
+        bot.click()
+        bot.wait(1500)
+
+        if not bot.find("5duploClickStatus", matching=0.97, waiting_time=5000):
+            raise Exception("Elemento '5duploClickStatus' não encontrado")
+        bot.double_click()
+        bot.wait(1000)
+
+        if not bot.find("5.1ct-e", matching=0.97, waiting_time=10000):
+            raise Exception("Elemento '5.1ct-e' não encontrado")
+        bot.click()
+        bot.wait(1500)
+
+        if not bot.find("5.2Cancelar_CTE", matching=0.97, waiting_time=10000):
+            raise Exception("Elemento '5.2Cancelar_CTE' não encontrado")
+        bot.click()
+        bot.wait(1000)
+
+        bot.type_keys("transporte cancelado")
+        bot.wait(1000)
+
+        if not bot.find("8confirmar", matching=0.97, waiting_time=10000):
+            raise Exception("Elemento '8confirmar' não encontrado")
+        bot.click()
+        bot.wait(1000)
+
+        # 🔄 Envia o protocolo com campos nulos para a API
+        payload = {
+            "data": [{"protocol": str(protocolo), "cte_loglife": None, "cte_loglife_emission_date": None}]
+        }
+        r = RequestDataFrame()
+        r.request_private(
+            link="https://transportebiologico.com.br/api/uploads/cte-loglife/json",
+            request_type="post",
+            payload=payload
+        )
+        print(f"📤 Protocolo {protocolo} (avulso) enviado com sucesso.")
+
+        # 🖱️ Clique na confirmação de sucesso
+        if bot.find("9-sucesso", matching=0.97, waiting_time=20000):
+            x, y, w, h = bot.get_last_element()
+            bot.click_at(x + w // 2, y + h - 1)
+            bot.wait(1000)
+        else:
+            raise Exception("Pop-up '9-sucesso' não encontrado.")
+
+        print(f"✅ CT-e avulso {numero_cte} cancelado com sucesso!")
+
+    except Exception as e:
+        print(f"❌ Erro fatal no cancelamento avulso do CT-e {numero_cte}: {e}")
+        # Aqui você poderia adicionar um pop-up de erro se estivesse usando uma GUI
+
+
+# ============================
+# Execução principal (Exemplo)
+# ============================
+
+if __name__ == "__main__":
+    # Exemplo de como chamar o robô principal
+    bot_principal = Bot()
+    # As datas podem vir de uma interface gráfica ou serem fixas
+    data_inicio = "2025-10-29"
+    data_fim = "2025-10-30"
+    bot_principal.action(data_inicio, data_fim)
+
+    # Exemplo de como chamar o cancelamento avulso
+    # cancelar_avulso_cte(numero_cte="12345", protocolo="987654321")

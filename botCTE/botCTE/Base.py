@@ -21,7 +21,7 @@ root = Tk()
 root.title('CTe LogLife')
 root.geometry("")
 root.resizable(False, False)
-root.iconbitmap('my_icon.ico')
+root.iconbitmap("my_icon.ico")
 thread_0 = Start(root)
 thread_1 = Start(root)
 thread_2 = Start(root)
@@ -51,7 +51,105 @@ tab2_frame2.pack()
 
 tab4_frame = Frame(tab4)
 tab4_frame.pack()
+#################################################################################################################################################
+# ============================
+# ABA DE CANCELAMENTO DE CTEs
+# ============================
 
+from tkinter import ttk, Frame, font
+from tkcalendar import DateEntry
+
+# Criação da aba e frame principal
+tab5 = ttk.Frame(tabs)
+tabs.add(tab5, text='Cancelamento de CTE')
+tab5_frame = Frame(tab5, pady=22)
+tab5_frame.pack()
+
+# Fonte personalizada para consistência visual
+custom_font = font.nametofont("TkDefaultFont")
+custom_font.configure(size=10)
+
+
+
+# Campo: Data inicial
+ttk.Label(tab5_frame, text="Data inicial:", font=custom_font).grid(row=0, column=0, sticky='W', padx=10, pady=5)
+data_inicial_cancelamento = DateEntry(
+    tab5_frame,
+    width=18,
+    background='white',
+    foreground='black',
+    borderwidth=2,
+    date_pattern='dd/mm/yyyy',
+    locale='pt_BR',
+    font=custom_font,
+    justify='center',
+    selectbackground='darkblue'
+)
+data_inicial_cancelamento.grid(row=0, column=1, padx=10, pady=5)
+
+# Campo: Data final
+ttk.Label(tab5_frame, text="Data final:", font=custom_font).grid(row=1, column=0, sticky='W', padx=10, pady=5)
+data_final_cancelamento = DateEntry(
+    tab5_frame,
+    width=18,
+    background='white',
+    foreground='black',
+    borderwidth=2,
+    date_pattern='dd/mm/yyyy',
+    locale='pt_BR',
+    font=custom_font,
+    justify='center',
+    selectbackground='darkblue'
+)
+data_final_cancelamento.grid(row=1, column=1, padx=10, pady=5)
+
+# Botão: Cancelar lista de CTe
+btn_cancelar_lista = ttk.Button(tab5_frame, text="Cancelar lista de CTe",
+    command=lambda: thread_2.start_thread(
+        lambda *args: Bot().action(args[0], args[1]),
+        progressbar5,
+        arguments=[
+            datetime.strptime(data_inicial_cancelamento.get(), "%d/%m/%Y").strftime("%Y-%m-%d"),
+            datetime.strptime(data_final_cancelamento.get(), "%d/%m/%Y").strftime("%Y-%m-%d"),
+            root  # será ignorado
+        ]
+    )
+)
+btn_cancelar_lista.grid(row=0, column=2, rowspan=2, padx=10, pady=5, sticky='ns')
+# Campo: CTe avulso
+ttk.Label(tab5_frame, text="CTe avulso:", font=custom_font).grid(row=2, column=0, sticky='W', padx=10, pady=5)
+entry_cte_avulso = ttk.Entry(tab5_frame, width=30, font=custom_font)
+entry_cte_avulso.grid(row=2, column=1, padx=10, pady=5)
+
+# Campo: Protocolo avulso
+ttk.Label(tab5_frame, text="Protocolo avulso:", font=custom_font).grid(row=3, column=0, sticky='W', padx=10, pady=5)
+entry_protocolo_avulso = ttk.Entry(tab5_frame, width=30, font=custom_font)
+entry_protocolo_avulso.grid(row=3, column=1, padx=10, pady=5)
+
+# Botão: Cancelar avulso (à direita do campo CT-e)
+btn_cancelar_avulso = ttk.Button(tab5_frame, text="Cancelar",
+    command=lambda: thread_2.start_thread(
+        cancelar_avulso_cte, progressbar5,
+        arguments=[
+            entry_cte_avulso.get(),
+            entry_protocolo_avulso.get(),
+            root
+        ]
+    )
+)
+btn_cancelar_avulso.grid(row=2, column=2, rowspan=2, padx=10, pady=5)
+
+# Barra de progresso da aba
+progressbar5 = ttk.Progressbar(tab5, mode='indeterminate')
+progressbar5.pack(side='bottom', fill='x')
+
+# Autoajuste de layout da aba
+tab5.rowconfigure(0, weight=1)
+tab5.columnconfigure(0, weight=1)
+tab5.columnconfigure(1, weight=1)
+tab5.columnconfigure(2, weight=1)
+
+########################################################################################################################################################
 # Set calendar
 
 today = dt.datetime.today()

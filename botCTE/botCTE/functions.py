@@ -123,19 +123,24 @@ class RequestDataFrame:
 
         return dataframe
 
-    def request_private(self, link: str, request_type="get", payload: dict = None) -> pd.DataFrame:
+    def request_private(self, link: str, request_type="get", payload: dict = None, nested: bool = False, json: bool = False) -> pd.DataFrame:
 
         if request_type == "get":
             response = requests.get(link, headers=self.auth, data=payload)
         elif request_type == "post":
-            response = requests.post(link, headers=self.auth, data=payload)
+            if not json:
+                response = requests.post (link, headers=self.auth, data=payload)
+            else:
+                response = requests.post (link, headers=self.auth, json=payload)
         else:
             response = requests.get(link, headers=self.auth)  # CHANGE LATER
 
-        print(response.text)
-
-        response_json = loads(response.text)
-        dataframe = pd.json_normalize(response_json)
+        if nested:
+            response_data = response.json()
+            dataframe = pd.DataFrame(response_data["data"])
+        else:
+            response_json = loads(response.text)
+            dataframe = pd.json_normalize(response_json)
 
         return dataframe
 

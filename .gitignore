@@ -44,3 +44,6 @@ botCTE/botCTE/*.pyc
 botCTE/botCTE/*.pyo
 botCTE/botCTE/*.pyd
 botCTE/botCTE/.ipynb_checkpoints
+*.xlsx
+!botCTE/botCTE/Alíquota.xlsx
+!botCTE/botCTE/Complementares.xlsx
