@@ -1,3 +1,4 @@
+import os
 import threading
 from json import loads
 from tkinter import filedialog as fd
@@ -8,6 +9,10 @@ import csv
 import pandas as pd
 import numpy as np
 import requests
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 
 # import xlwings as xw
@@ -103,8 +108,19 @@ class Browse:
 class RequestDataFrame:
 
     def __init__(self):
-        self.headers = {"xtoken": "myqhF6Nbzx"}
-        details = {"email": "ARTURSENNA@LOGLIFELOGISTICA.COM.BR", "password": "A3928024854c#"}
+        # Get credentials from environment variables
+        xtoken = os.getenv("LOGLIFE_XTOKEN")
+        email = os.getenv("LOGLIFE_USER")
+        password = os.getenv("LOGLIFE_PASSWORD")
+        
+        if not all([xtoken, email, password]):
+            raise ValueError(
+                "Missing required environment variables. "
+                "Please ensure LOGLIFE_XTOKEN, LOGLIFE_USER, and LOGLIFE_PASSWORD are set in .env file"
+            )
+        
+        self.headers = {"xtoken": xtoken}
+        details = {"email": email, "password": password}
         key = requests.post("https://transportebiologico.com.br/api/sessions", json=details)
         key_json = loads(key.text)
         self.auth = {"authorization": key_json["token"]}

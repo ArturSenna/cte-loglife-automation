@@ -1,49 +1,77 @@
-dist
-.idea
-__pychache
-Relatórios
-Serviços
-venv
-botCTe/.pytest_cache
-botCTE/.egg-info
-botCTE/dist
-botCTE/build
-botCTE/.mypy_cache
-botCTE/.vscode
-*.pyc
-*.pyo
-*.pyd
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual Environments
+venv/
+env/
+ENV/
+.venv
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+*.egg
+
+# PyInstaller
+*.manifest
+*.spec
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Testing
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Database
 *.db
 *.sqlite3
-.DS_Store
+
+# Environment variables
 .env
 .env.*
-.ipynb_checkpoints
+!.env.example
+
+# Logs
+*.log
+logs/
+
+# OS
+Thumbs.db
+
+# Project specific
+Relatórios/
+Serviços/
 celerybeat-schedule
-botCTE/botCTE/dist
-botCTE/botCTE/build
-botCTE/botCTE/.eggs
-botCTE/botCTE/*.egg-info
-botCTE/botCTE/__pycache__
-botCTE/botCTE/migrations/__pycache__
-botCTE/botCTE/migrations/*.pyc
-botCTE/botCTE/staticfiles
-botCTE/botCTE/media
-botCTE/botCTE/.vscode
-botCTE/botCTE/.pytest_cache
-botCTE/botCTE/.mypy_cache
-botCTE/botCTE/.idea
-botCTE/botCTE/.env
-botCTE/botCTE/.env.*
-botCTE/botCTE/celerybeat-schedule
-botCTE/botCTE/*.db
-botCTE/botCTE/*.sqlite3
-botCTE/botCTE/.DS_Store
-botCTE/botCTE/__pycache__
-botCTE/botCTE/*.pyc
-botCTE/botCTE/*.pyo
-botCTE/botCTE/*.pyd
-botCTE/botCTE/.ipynb_checkpoints
+staticfiles/
+media/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Excel files (except required data files)
 *.xlsx
+*.xls
 !botCTE/botCTE/Alíquota.xlsx
 !botCTE/botCTE/Complementares.xlsx
+
+# Text config files (should be environment-based)
+filename.txt
+folderpath.txt
+folderpath2.txt
+relatorio_bsoft.txt
+relatorio_target.txt

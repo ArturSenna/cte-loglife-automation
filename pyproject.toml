@@ -1,0 +1,141 @@
+[build-system]
+requires = ["setuptools>=65.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "botCTE"
+version = "1.0.0"
+description = "Automação do processo de emissão de CTe com integração no BSoft"
+readme = "README.md"
+authors = [
+    {name = "Artur Senna", email = "your.email@example.com"}
+]
+license = {text = "MIT"}
+requires-python = ">=3.9"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Operating System :: Microsoft :: Windows",
+]
+
+dependencies = [
+    # Core BotCity Framework
+    "botcity-framework-base==0.3.1",
+    "botcity-framework-core==0.3.0",
+    "botcity-maestro-sdk==0.1.5",
+    
+    # Data Processing
+    "pandas>=1.5.0,<2.0.0",
+    "numpy>=1.23.0,<2.0.0",
+    "openpyxl>=3.0.10",
+    "xlwings>=0.27.15",
+    
+    # Web Automation
+    "selenium>=4.4.0,<5.0.0",
+    "webdriver-manager>=3.8.0",
+    
+    # Google Sheets Integration
+    "gspread>=5.5.0",
+    "oauth2client>=4.1.3",
+    "google-api-python-client>=2.62.0",
+    "df2gspread>=1.0.4",
+    
+    # UI Components
+    "tkcalendar>=1.6.1",
+    "ttkthemes>=3.2.2",
+    
+    # GUI Automation
+    "PyAutoGUI>=0.9.53",
+    "opencv-python>=4.6.0",
+    "Pillow>=9.2.0",
+    
+    # HTTP Requests
+    "requests>=2.28.0",
+    
+    # Utilities
+    "python-dotenv>=0.21.0",
+    "python-dateutil>=2.8.2",
+    "arrow>=1.2.3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.2.0",
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "flake8>=6.0.0",
+    "mypy>=1.0.0",
+    "pre-commit>=3.0.0",
+]
+
+build = [
+    "pyinstaller>=5.2",
+    "pyinstaller-hooks-contrib>=2022.10",
+]
+
+[project.urls]
+Homepage = "https://github.com/ArturSenna/cte-loglife-automation"
+Repository = "https://github.com/ArturSenna/cte-loglife-automation"
+Issues = "https://github.com/ArturSenna/cte-loglife-automation/issues"
+
+[tool.setuptools]
+packages = ["botCTE"]
+package-dir = {"" = "botCTE"}
+
+[tool.setuptools.package-data]
+botCTE = ["resources/*", "*.xlsx", "*.ico", "*.xml"]
+
+# Black configuration
+[tool.black]
+line-length = 100
+target-version = ['py39']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+# isort configuration
+[tool.isort]
+profile = "black"
+line_length = 100
+skip_gitignore = true
+known_first_party = ["botCTE"]
+
+# pytest configuration
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--verbose",
+    "--strict-markers",
+    "--tb=short",
+]
+
+# mypy configuration
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
