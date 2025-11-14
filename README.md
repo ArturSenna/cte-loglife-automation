@@ -43,6 +43,10 @@ O CTe LogLife é uma ferramenta de automação RPA (Robotic Process Automation) 
 - ✅ Geração de relatórios CSV de associação
 - ✅ Validação de CNPJ e dados de endereço
 - ✅ Suporte a múltiplos remetentes e destinatários
+- ✅ **Sistema de atualização automática** (novo! 🎉)
+  - Verificação de atualizações no início
+  - Atualização com um clique
+  - Integração com GitHub Releases
 
 ## 🔧 Requisitos
 

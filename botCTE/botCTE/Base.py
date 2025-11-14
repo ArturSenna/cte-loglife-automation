@@ -14,6 +14,7 @@ from tkinter import *
 from tkinter import filedialog as fd
 from tkinter import Toplevel
 from tkinter import ttk
+from tkinter import messagebox
 
 # Third-party imports
 import numpy as np
@@ -30,6 +31,15 @@ except ImportError:
     pass  # Handle missing emissions module gracefully
 import bot
 
+# Update system imports
+try:
+    from version_checker import VersionChecker
+    from auto_updater import AutoUpdater, UpdateManager
+except ImportError:
+    VersionChecker = None
+    AutoUpdater = None
+    UpdateManager = None
+
 
 # =============================================================================
 # CONSTANTS AND CONFIGURATION
@@ -38,10 +48,22 @@ import bot
 # Get the directory where this script is located
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
+# Read application version
+VERSION_FILE = os.path.join(os.path.dirname(_SCRIPT_DIR), 'VERSION')
+try:
+    with open(VERSION_FILE, 'r', encoding='utf-8') as f:
+        APP_VERSION = f.read().strip()
+except:
+    APP_VERSION = '1.0.0'
+
 APP_TITLE = 'CTe LogLife'
 APP_ICON = os.path.join(_SCRIPT_DIR, "my_icon.ico")
 WINDOW_SIZE = ""
 THEME_NAME = 'breeze'
+
+# Update configuration
+GITHUB_REPO_OWNER = 'ArturSenna'
+GITHUB_REPO_NAME = 'cte-loglife-automation'
 
 # UI Colors
 PRIMARY_COLOR = '#00a5e7'
@@ -118,6 +140,285 @@ def get_calendar_config(dia, mes, ano):
     }
 
 
+def check_for_updates_ui(parent_window, show_up_to_date=True):
+    """
+    Check for updates and show dialog.
+    
+    Args:
+        parent_window: Parent Tkinter window
+        show_up_to_date: Whether to show message when already up to date
+    """
+    if not VersionChecker:
+        messagebox.showinfo("Atualização", "Sistema de atualização não disponível.")
+        return
+    
+    try:
+        # Create version checker
+        checker = VersionChecker(
+            repo_owner=GITHUB_REPO_OWNER,
+            repo_name=GITHUB_REPO_NAME,
+            current_version=APP_VERSION
+        )
+        
+        # Check for updates
+        update_info = checker.check_for_updates()
+        
+        if update_info.get('error'):
+            messagebox.showerror(
+                "Erro ao Verificar Atualização",
+                f"Não foi possível verificar atualizações:\n{update_info['error']}"
+            )
+            return
+        
+        if update_info['update_available']:
+            show_update_dialog(parent_window, update_info)
+        else:
+            if show_up_to_date:
+                messagebox.showinfo(
+                    "Atualização",
+                    f"Você está usando a versão mais recente!\n\nVersão atual: {APP_VERSION}"
+                )
+    except Exception as e:
+        messagebox.showerror(
+            "Erro",
+            f"Erro ao verificar atualizações:\n{str(e)}"
+        )
+
+
+def show_update_dialog(parent_window, update_info):
+    """
+    Show update available dialog with options to download and install.
+    
+    Args:
+        parent_window: Parent Tkinter window
+        update_info: Update information dictionary
+    """
+    dialog = Toplevel(parent_window)
+    dialog.title("Atualização Disponível")
+    dialog.geometry("500x400")
+    dialog.resizable(False, False)
+    dialog.transient(parent_window)
+    dialog.grab_set()
+    
+    # Center dialog
+    dialog.update_idletasks()
+    x = (dialog.winfo_screenwidth() // 2) - (dialog.winfo_width() // 2)
+    y = (dialog.winfo_screenheight() // 2) - (dialog.winfo_height() // 2)
+    dialog.geometry(f'+{x}+{y}')
+    
+    # Header frame
+    header_frame = Frame(dialog, bg=PRIMARY_COLOR, height=80)
+    header_frame.pack(fill='x')
+    header_frame.pack_propagate(False)
+    
+    Label(
+        header_frame,
+        text="🎉 Nova Versão Disponível!",
+        font=('Segoe UI', 16, 'bold'),
+        bg=PRIMARY_COLOR,
+        fg='white'
+    ).pack(pady=20)
+    
+    # Content frame
+    content_frame = Frame(dialog, bg='white', padx=20, pady=20)
+    content_frame.pack(fill='both', expand=True)
+    
+    # Version info
+    version_frame = Frame(content_frame, bg='white')
+    version_frame.pack(fill='x', pady=10)
+    
+    Label(
+        version_frame,
+        text=f"Versão Atual: {update_info['current_version']}",
+        font=('Segoe UI', 10),
+        bg='white'
+    ).pack(anchor='w')
+    
+    Label(
+        version_frame,
+        text=f"Nova Versão: {update_info['latest_version']}",
+        font=('Segoe UI', 10, 'bold'),
+        bg='white',
+        fg=PRIMARY_COLOR
+    ).pack(anchor='w')
+    
+    # Release notes
+    Label(
+        content_frame,
+        text="Novidades:",
+        font=('Segoe UI', 10, 'bold'),
+        bg='white'
+    ).pack(anchor='w', pady=(10, 5))
+    
+    # Scrollable text for release notes
+    notes_frame = Frame(content_frame, bg='white')
+    notes_frame.pack(fill='both', expand=True, pady=5)
+    
+    scrollbar = Scrollbar(notes_frame)
+    scrollbar.pack(side=RIGHT, fill='y')
+    
+    notes_text = Text(
+        notes_frame,
+        wrap=WORD,
+        height=8,
+        font=('Segoe UI', 9),
+        yscrollcommand=scrollbar.set,
+        relief='sunken',
+        borderwidth=1
+    )
+    notes_text.pack(side=LEFT, fill='both', expand=True)
+    scrollbar.config(command=notes_text.yview)
+    
+    notes_text.insert('1.0', update_info.get('release_notes', 'Sem notas de versão disponíveis.'))
+    notes_text.config(state='disabled')
+    
+    # Progress bar (hidden initially)
+    progress_var = DoubleVar(value=0)
+    progress_bar = ttk.Progressbar(
+        content_frame,
+        mode='determinate',
+        variable=progress_var,
+        maximum=100
+    )
+    
+    status_label = Label(
+        content_frame,
+        text="",
+        font=('Segoe UI', 9),
+        bg='white',
+        fg='gray'
+    )
+    
+    # Button frame
+    button_frame = Frame(dialog, bg='white', pady=10)
+    button_frame.pack(fill='x', side='bottom')
+    
+    def start_update():
+        """Start the update download and installation."""
+        if not update_info.get('download_url'):
+            messagebox.showerror(
+                "Erro",
+                "URL de download não disponível.\nPor favor, visite o site para baixar manualmente."
+            )
+            return
+        
+        # Disable buttons and show progress
+        download_btn.config(state='disabled')
+        later_btn.config(state='disabled')
+        progress_bar.pack(fill='x', pady=(10, 5))
+        status_label.pack(fill='x')
+        status_label.config(text="Baixando atualização...")
+        
+        def progress_callback(progress):
+            """Update progress bar."""
+            progress_var.set(progress)
+            status_label.config(text=f"Baixando... {progress}%")
+            dialog.update_idletasks()
+        
+        def download_complete(installer_path):
+            """Handle download completion."""
+            if installer_path:
+                status_label.config(text="Download concluído! Iniciando instalação...")
+                dialog.update_idletasks()
+                
+                # Small delay to show completion
+                dialog.after(1000, lambda: install_update(installer_path))
+            else:
+                status_label.config(text="Erro no download!")
+                messagebox.showerror(
+                    "Erro",
+                    "Falha ao baixar a atualização.\nTente novamente mais tarde."
+                )
+                download_btn.config(state='normal')
+                later_btn.config(state='normal')
+        
+        def install_update(installer_path):
+            """Install the update."""
+            dialog.destroy()
+            
+            response = messagebox.askyesno(
+                "Instalar Atualização",
+                "A atualização será instalada agora.\n\n"
+                "O aplicativo será fechado durante a instalação.\n\n"
+                "Deseja continuar?"
+            )
+            
+            if response:
+                updater = AutoUpdater(download_url=update_info['download_url'])
+                updater.installer_path = installer_path
+                success = updater.install_update(silent=False)
+                
+                if success:
+                    # Exit application
+                    import sys
+                    sys.exit(0)
+        
+        # Start download in background
+        updater = AutoUpdater(download_url=update_info['download_url'])
+        updater.set_download_callback(progress_callback)
+        updater.download_in_background(download_complete)
+    
+    # Buttons
+    download_btn = Button(
+        button_frame,
+        text="⬇️ Baixar e Instalar",
+        command=start_update,
+        bg=PRIMARY_COLOR,
+        fg='white',
+        font=('Segoe UI', 10, 'bold'),
+        relief='flat',
+        padx=20,
+        pady=8,
+        cursor='hand2'
+    )
+    download_btn.pack(side=RIGHT, padx=(5, 20))
+    
+    later_btn = Button(
+        button_frame,
+        text="Mais Tarde",
+        command=dialog.destroy,
+        bg='#E0E0E0',
+        fg='black',
+        font=('Segoe UI', 10),
+        relief='flat',
+        padx=20,
+        pady=8,
+        cursor='hand2'
+    )
+    later_btn.pack(side=RIGHT, padx=5)
+
+
+def check_for_updates_on_startup(parent_window):
+    """
+    Check for updates on application startup (non-intrusive).
+    
+    Args:
+        parent_window: Parent Tkinter window
+    """
+    def check_updates():
+        try:
+            if not VersionChecker:
+                return
+            
+            checker = VersionChecker(
+                repo_owner=GITHUB_REPO_OWNER,
+                repo_name=GITHUB_REPO_NAME,
+                current_version=APP_VERSION
+            )
+            
+            update_info = checker.check_for_updates()
+            
+            if update_info.get('update_available') and not update_info.get('error'):
+                # Schedule UI update on main thread
+                parent_window.after(0, lambda: show_update_dialog(parent_window, update_info))
+        except:
+            pass  # Silently fail on startup check
+    
+    # Run check in background thread
+    thread = threading.Thread(target=check_updates, daemon=True)
+    thread.start()
+
+
 # =============================================================================
 # APPLICATION SETUP
 # =============================================================================
@@ -131,6 +432,28 @@ try:
     root.iconbitmap(APP_ICON)
 except:
     pass  # Icon file not found, continue without it
+
+# Create menu bar
+menubar = Menu(root)
+root.config(menu=menubar)
+
+# Help menu
+help_menu = Menu(menubar, tearoff=0)
+menubar.add_cascade(label="Ajuda", menu=help_menu)
+help_menu.add_command(
+    label="Verificar Atualizações",
+    command=lambda: check_for_updates_ui(root, show_up_to_date=True)
+)
+help_menu.add_separator()
+help_menu.add_command(
+    label=f"Sobre {APP_TITLE}",
+    command=lambda: messagebox.showinfo(
+        f"Sobre {APP_TITLE}",
+        f"{APP_TITLE}\nVersão {APP_VERSION}\n\n"
+        "Automação de emissão de CTe's\n"
+        "Desenvolvido com BotCity Framework"
+    )
+)
 
 # Initialize threading objects
 thread_0 = Start(root)
@@ -585,6 +908,9 @@ if __name__ == '__main__':
     x = (root.winfo_screenwidth() // 2) - (width // 2)
     y = (root.winfo_screenheight() // 2) - (height // 2)
     root.geometry(f'+{x}+{y}')
+    
+    # Check for updates on startup (non-intrusive, runs in background)
+    check_for_updates_on_startup(root)
     
     # Start the GUI event loop
     root.mainloop()
