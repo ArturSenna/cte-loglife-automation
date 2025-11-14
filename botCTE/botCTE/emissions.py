@@ -70,8 +70,11 @@ state_full_name = {
     'TO':    'ESTADO DO TOCANTINS'
 }
 
-uf_base = pd.read_excel('Complementares.xlsx', sheet_name='Plan1')
-aliquota_base = pd.read_excel('Alíquota.xlsx', sheet_name='Planilha1')
+# Get the directory where this script is located
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+uf_base = pd.read_excel(os.path.join(_SCRIPT_DIR, 'Complementares.xlsx'), sheet_name='Plan1')
+aliquota_base = pd.read_excel(os.path.join(_SCRIPT_DIR, 'Alíquota.xlsx'), sheet_name='Planilha1')
 
 
 def cte_list(start_date, final_date, folderpath, cte_folder, root):
@@ -2664,7 +2667,7 @@ def processar_gnre_target(relatorio_target_path, root):
 
 
 if __name__ == "__main__":
-    run_emissions()
+    pass
 
     # Exemplo de como chamar o cancelamento avulso
     # cancelar_avulso_cte(numero_cte="12345", protocolo="987654321")

@@ -35,8 +35,11 @@ import bot
 # CONSTANTS AND CONFIGURATION
 # =============================================================================
 
+# Get the directory where this script is located
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+
 APP_TITLE = 'CTe LogLife'
-APP_ICON = "my_icon.ico"
+APP_ICON = os.path.join(_SCRIPT_DIR, "my_icon.ico")
 WINDOW_SIZE = ""
 THEME_NAME = 'breeze'
 
