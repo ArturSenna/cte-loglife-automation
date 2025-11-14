@@ -1,4 +1,5 @@
 import os
+import sys
 import threading
 from json import loads
 from tkinter import filedialog as fd
@@ -11,10 +12,22 @@ import numpy as np
 import requests
 from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
+# Determine the script directory (works for both normal and frozen/packaged)
+if getattr(sys, 'frozen', False):
+    # Running as compiled executable
+    _SCRIPT_DIR = os.path.dirname(sys.executable)
+else:
+    # Running as script
+    _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
-_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+# Load environment variables from .env file in script directory
+env_path = os.path.join(_SCRIPT_DIR, '.env')
+if os.path.exists(env_path):
+    load_dotenv(dotenv_path=env_path)
+    print(f"[INFO] Loaded .env from: {env_path}")
+else:
+    print(f"[WARNING] .env file not found at: {env_path}")
+    load_dotenv()  # Try default locations as fallback
 
 
 # import xlwings as xw

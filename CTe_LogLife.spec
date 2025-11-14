@@ -69,6 +69,14 @@ datas += [
     (os.path.join(botcte_dir, 'Alíquota.xlsx'), '.'),
 ]
 
+# Add .env file if it exists in the botCTE directory
+env_file = os.path.join(botcte_dir, '.env')
+if os.path.exists(env_file):
+    datas += [(env_file, '.')]
+    print(f"[INFO] Including .env file from: {env_file}")
+else:
+    print("[WARNING] .env file not found - application may need manual configuration")
+
 # Add resources folder if it exists
 resources_dir = os.path.join(botcte_dir, 'resources')
 if os.path.exists(resources_dir):
