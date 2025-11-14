@@ -51,9 +51,10 @@ _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 # Read application version
 VERSION_FILE = os.path.join(os.path.dirname(_SCRIPT_DIR), 'VERSION')
 try:
-    with open(VERSION_FILE, 'r', encoding='utf-8') as f:
+    with open(VERSION_FILE, 'r', encoding='utf-16') as f:
         APP_VERSION = f.read().strip()
-except:
+except Exception as e:
+    print(f"Warning: Could not read VERSION file: {e}")
     APP_VERSION = '1.0.0'
 
 APP_TITLE = 'CTe LogLife'
@@ -641,7 +642,7 @@ ttk.Button(tab3,
            )).pack(pady=PADDING_LARGE, padx=PADDING_XL, fill='x', ipady=PADDING_SMALL)
 
 ttk.Button(tab3,
-           text="💰 Processar GNRE Target",
+           text="💰 Lançar guias de ICMS",
            command=lambda: thread_0.start_thread(
                processar_gnre_target, progressbar3, arguments=[relatorio_target.get(),
                                                                 root]

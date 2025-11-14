@@ -16,6 +16,18 @@ if (-not (Test-Path ".\dist\CTe LogLife")) {
 Write-Host "[OK] Executable found" -ForegroundColor Green
 Write-Host ""
 
+# Read version from VERSION file
+Write-Host "Reading version..." -ForegroundColor Cyan
+try {
+    $version = Get-Content ".\botCTE\VERSION" -ErrorAction Stop | Select-Object -First 1
+    $version = $version.Trim()
+    Write-Host "[OK] Building version: $version" -ForegroundColor Green
+} catch {
+    Write-Host "[WARNING] Could not read VERSION file, using default" -ForegroundColor Yellow
+    $version = "1.0.0"
+}
+Write-Host ""
+
 # Check for Inno Setup
 Write-Host "Checking for Inno Setup..." -ForegroundColor Cyan
 

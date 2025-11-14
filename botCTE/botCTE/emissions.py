@@ -3,11 +3,9 @@ import os
 import time
 import traceback
 from datetime import datetime
-import requests
 import numpy as np
 import bot
 from functions import *
-from botcity.core import DesktopBot
 
 r = RequestDataFrame()
 
@@ -2089,43 +2087,67 @@ def cte_cancel_batch(start_date, final_date, root):
 
         print(f"\n📋 {len(lista_servicos)} serviços encontrados na API.")
 
-        # Filter valid CTes
-        lista_filtrada = [
-            item for item in lista_servicos
-            if "cte_loglife" in item and item["cte_loglife"] and str(item["cte_loglife"]).strip() not in ["-", ""]
-        ]
-        print(f"✅ {len(lista_filtrada)} CT-es válidos para processamento.")
+        # Separate CTes by type
+        ctes_loglife = []
+        ctes_complementary = []
 
-        if not lista_filtrada:
-            confirmation_pop_up(root, "⚠️ Nenhum CT-e encontrado para cancelamento.")
+        for item in lista_servicos:
+            protocolo = str(item["protocol"])
+
+            # Check for Loglife CTe
+            if "cte_loglife" in item and item["cte_loglife"]:
+                numero_cte = str(item["cte_loglife"]).strip()
+                if numero_cte not in ["-", "", "nan"] and numero_cte.isdigit():
+                    ctes_loglife.append({
+                        "numero": numero_cte,
+                        "protocolo": protocolo
+                    })
+
+            # Check for Complementary CTe
+            if "cte_complementary" in item and item["cte_complementary"]:
+                numero_cte = str(item["cte_complementary"]).strip()
+                if numero_cte not in ["-", "", "nan"] and numero_cte.isdigit():
+                    ctes_complementary.append({
+                        "numero": numero_cte,
+                        "protocolo": protocolo
+                    })
+
+        total_ctes = len(ctes_loglife) + len(ctes_complementary)
+        print(f"✅ {len(ctes_loglife)} CT-es Loglife para cancelar")
+        print(f"✅ {len(ctes_complementary)} CT-es Complementares para cancelar")
+        print(f"📊 Total: {total_ctes} CT-es")
+
+        if total_ctes == 0:
+            confirmation_pop_up(root, "⚠️ Nenhum CT-e válido encontrado para cancelamento.")
             return
-
-        print(f"\n🔁 Iniciando cancelamento de {len(lista_filtrada)} CT-es")
 
         # Initialize bot
         bot_cte = bot.Bot()
-        
-        ctes_cancelados = 0
-        ctes_com_erro = 0
-        api_success = 0
-        api_errors = 0
-        
-        # Loop through each CTe
-        for item in lista_filtrada:
-            numero_cte = str(item["cte_loglife"]).strip()
-            protocolo = str(item["protocol"])
-            
-            if not numero_cte.isdigit():
-                print(f"⚠️ CT-e ignorado (não numérico): {numero_cte}")
-                ctes_com_erro += 1
-                continue
-            
+
+        stats = {
+            "loglife_cancelados": 0,
+            "loglife_erros": 0,
+            "complementary_cancelados": 0,
+            "complementary_erros": 0,
+            "api_loglife_success": 0,
+            "api_loglife_errors": 0,
+            "api_complementary_success": 0,
+            "api_complementary_errors": 0
+        }
+
+        # Cancel Loglife CTes
+        print(f"\n🔁 Processando {len(ctes_loglife)} CT-es Loglife...")
+        for cte_data in ctes_loglife:
+            numero_cte = cte_data["numero"]
+            protocolo = cte_data["protocolo"]
+
             try:
                 # Cancel CTe via UI automation
                 bot_cte.cancel_cte(numero_cte)
-                ctes_cancelados += 1
-                
-                # Send API request to update this specific CTe
+                stats["loglife_cancelados"] += 1
+                print(f"✅ CT-e Loglife {numero_cte} cancelado")
+
+                # Update API
                 try:
                     payload = {
                         "data": [
@@ -2142,24 +2164,85 @@ def cte_cancel_batch(start_date, final_date, root):
                         payload=payload,
                         json=True
                     )
-                    print(f"📤 Protocolo {protocolo} enviado com sucesso com CT-e nulo.")
-                    api_success += 1
+                    stats["api_loglife_success"] += 1
+                    print(f"📤 Protocolo {protocolo} atualizado (Loglife anulado)")
                 except Exception as api_error:
-                    print(f"❌ Erro ao enviar protocolo {protocolo}: {api_error}")
-                    api_errors += 1
-                    
+                    print(f"❌ Erro API Loglife - Protocolo {protocolo}: {api_error}")
+                    stats["api_loglife_errors"] += 1
+
             except Exception as e:
-                print(f"⚠️ Erro no processamento do CT-e {numero_cte}: {str(e)}")
-                ctes_com_erro += 1
+                print(f"⚠️ Erro ao cancelar CT-e Loglife {numero_cte}: {str(e)}")
+                stats["loglife_erros"] += 1
+
+        # Cancel Complementary CTes
+        print(f"\n🔁 Processando {len(ctes_complementary)} CT-es Complementares...")
+        for cte_data in ctes_complementary:
+            numero_cte = cte_data["numero"]
+            protocolo = cte_data["protocolo"]
+
+            try:
+                # Cancel CTe via UI automation
+                bot_cte.cancel_cte(numero_cte)
+                stats["complementary_cancelados"] += 1
+                print(f"✅ CT-e Complementar {numero_cte} cancelado")
+
+                # Update API
+                try:
+                    payload = {
+                        "data": [
+                            {
+                                "protocol": protocolo,
+                                "cte_complementary": None,
+                                "cte_complementary_emission_date": None
+                            }
+                        ]
+                    }
+                    r.request_private(
+                        link="https://transportebiologico.com.br/api/uploads/cte-complementary/json",
+                        request_type="post",
+                        payload=payload,
+                        json=True
+                    )
+                    stats["api_complementary_success"] += 1
+                    print(f"📤 Protocolo {protocolo} atualizado (Complementar anulado)")
+                except Exception as api_error:
+                    print(f"❌ Erro API Complementar - Protocolo {protocolo}: {api_error}")
+                    stats["api_complementary_errors"] += 1
+
+            except Exception as e:
+                print(f"⚠️ Erro ao cancelar CT-e Complementar {numero_cte}: {str(e)}")
+                stats["complementary_erros"] += 1
 
         # Show results
-        print(f"\n📊 Cancelamento concluído.")
-        print(f"✅ CT-es cancelados: {ctes_cancelados}")
-        print(f"⚠️ CT-es com erro: {ctes_com_erro}")
-        print(f"📤 API atualizações bem-sucedidas: {api_success}")
-        print(f"❌ API atualizações com erro: {api_errors}")
+        print(f"\n📊 CANCELAMENTO CONCLUÍDO")
+        print(f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        print(f"CT-es Loglife:")
+        print(f"  ✅ Cancelados: {stats['loglife_cancelados']}")
+        print(f"  ⚠️ Erros: {stats['loglife_erros']}")
+        print(f"  📤 API Sucesso: {stats['api_loglife_success']}")
+        print(f"  ❌ API Erros: {stats['api_loglife_errors']}")
+        print(f"\nCT-es Complementares:")
+        print(f"  ✅ Cancelados: {stats['complementary_cancelados']}")
+        print(f"  ⚠️ Erros: {stats['complementary_erros']}")
+        print(f"  📤 API Sucesso: {stats['api_complementary_success']}")
+        print(f"  ❌ API Erros: {stats['api_complementary_errors']}")
+        print(f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
-        result_message = f"Cancelamento concluído!\n\nCT-es cancelados: {ctes_cancelados}\nCT-es com erro: {ctes_com_erro}\n\nAPI atualizações: {api_success} sucesso, {api_errors} erro"
+        total_cancelados = stats['loglife_cancelados'] + stats['complementary_cancelados']
+        total_erros = stats['loglife_erros'] + stats['complementary_erros']
+
+        result_message = (
+            f"Cancelamento concluído!\n\n"
+            f"CT-es Loglife:\n"
+            f"  Cancelados: {stats['loglife_cancelados']}\n"
+            f"  Erros: {stats['loglife_erros']}\n"
+            f"  API: {stats['api_loglife_success']} OK, {stats['api_loglife_errors']} erro\n\n"
+            f"CT-es Complementares:\n"
+            f"  Cancelados: {stats['complementary_cancelados']}\n"
+            f"  Erros: {stats['complementary_erros']}\n"
+            f"  API: {stats['api_complementary_success']} OK, {stats['api_complementary_errors']} erro\n\n"
+            f"Total: {total_cancelados} cancelados, {total_erros} erros"
+        )
         confirmation_pop_up(root, result_message)
 
     except Exception as e:
@@ -2167,10 +2250,16 @@ def cte_cancel_batch(start_date, final_date, root):
         confirmation_pop_up(root, f"❌ Erro ao consultar API: {e}")
 
 
-def cancelar_avulso_cte(numero_cte, protocolo, root):
+def cancelar_avulso_cte(numero_cte, protocolo, root, cte_type="loglife"):
     """
     Cancel a single CTe document.
     Follows the same pattern as other emission functions.
+    
+    Args:
+        numero_cte: CTe number to cancel
+        protocolo: Protocol number to update in API
+        root: Tkinter root window for popup messages
+        cte_type: Type of CTe - "loglife" or "complementary" (default: "loglife")
     """
     if not numero_cte or not protocolo:
         confirmation_pop_up(root, "⚠️ CT-e e Protocolo são obrigatórios.")
@@ -2181,25 +2270,42 @@ def cancelar_avulso_cte(numero_cte, protocolo, root):
         bot_cte = bot.Bot()
         bot_cte.cancel_cte(numero_cte)
         
+        # Determine API endpoint and payload based on cte_type
+        if cte_type.lower() == "complementary":
+            api_endpoint = "https://transportebiologico.com.br/api/uploads/cte-complementary/json"
+            payload = {
+                "data": [
+                    {
+                        "protocol": str(protocolo),
+                        "cte_complementary": None,
+                        "cte_complementary_emission_date": None
+                    }
+                ]
+            }
+            cte_type_label = "Complementar"
+        else:  # Default to loglife
+            api_endpoint = "https://transportebiologico.com.br/api/uploads/cte-loglife/json"
+            payload = {
+                "data": [
+                    {
+                        "protocol": str(protocolo),
+                        "cte_loglife": None,
+                        "cte_loglife_emission_date": None
+                    }
+                ]
+            }
+            cte_type_label = "Loglife"
+        
         # Update API after successful cancellation
-        payload = {
-            "data": [
-                {
-                    "protocol": str(protocolo),
-                    "cte_loglife": None,
-                    "cte_loglife_emission_date": None
-                }
-            ]
-        }
         r.request_private(
-            link="https://transportebiologico.com.br/api/uploads/cte-loglife/json",
+            link=api_endpoint,
             request_type="post",
             payload=payload,
             json=True
         )
-        print(f"📤 Protocolo {protocolo} (avulso) enviado com sucesso.")
+        print(f"📤 Protocolo {protocolo} ({cte_type_label} avulso) enviado com sucesso.")
         
-        confirmation_pop_up(root, f"✅ CT-e {numero_cte} cancelado com sucesso!")
+        confirmation_pop_up(root, f"✅ CT-e {cte_type_label} {numero_cte} cancelado com sucesso!")
     except Exception as e:
         print(f"❌ Erro fatal no cancelamento avulso do CT-e {numero_cte}: {e}")
         confirmation_pop_up(root, f"❌ Erro no cancelamento: {str(e)}")
@@ -2287,25 +2393,39 @@ def validar_e_cancelar_ctes(relatorio_bsoft_path, root):
         
         print(f"\n📋 {len(lista_servicos)} serviços encontrados na API.")
         
-        # Extract CTes from services list
-        ctes_api = set()
+        # Extract CTes from services list (both types)
+        ctes_api_loglife = set()
+        ctes_api_complementary = set()
+        ctes_api_all = set()
+
         for item in lista_servicos:
+            # Loglife CTes
             if "cte_loglife" in item and item["cte_loglife"]:
                 cte_num = str(item["cte_loglife"]).strip()
-                if cte_num and cte_num not in ["-", ""]:
-                    ctes_api.add(cte_num)
+                if cte_num and cte_num not in ["-", "", "nan"]:
+                    ctes_api_loglife.add(cte_num)
+                    ctes_api_all.add(cte_num)
+
+            # Complementary CTes
+            if "cte_complementary" in item and item["cte_complementary"]:
+                cte_num = str(item["cte_complementary"]).strip()
+                if cte_num and cte_num not in ["-", "", "nan"]:
+                    ctes_api_complementary.add(cte_num)
+                    ctes_api_all.add(cte_num)
         
-        print(f"✅ {len(ctes_api)} CT-es encontrados na API")
+        print(f"✅ {len(ctes_api_loglife)} CT-es Loglife na API")
+        print(f"✅ {len(ctes_api_complementary)} CT-es Complementares na API")
+        print(f"✅ {len(ctes_api_all)} CT-es únicos no total")
         
-        # Find CTes in B-Soft but NOT in API (these should be cancelled)
-        ctes_para_cancelar = ctes_bsoft - ctes_api
+        # Find CTes in B-Soft but NOT in API
+        ctes_para_cancelar = ctes_bsoft - ctes_api_all
         
         if not ctes_para_cancelar:
-            print("✅ Todos os CT-es do B-soft foram encontrados na API. Nenhum cancelamento necessário.")
+            print("✅ Todos os CT-es do B-soft foram encontrados na API.")
             confirmation_pop_up(root, "✅ Todos os CT-es estão sincronizados!\nNenhum cancelamento necessário.")
             return
         
-        print(f"\n⚠️ {len(ctes_para_cancelar)} CT-es do B-soft NÃO estão na API e serão cancelados:")
+        print(f"\n⚠️ {len(ctes_para_cancelar)} CT-es do B-soft NÃO estão na API:")
         for cte in sorted(ctes_para_cancelar):
             print(f"  - {cte}")
         
@@ -2317,6 +2437,8 @@ def validar_e_cancelar_ctes(relatorio_bsoft_path, root):
         ctes_com_erro = 0
         
         # Cancel each CTe
+        # NOTE: We don't know if it's Loglife or Complementary from B-Soft report
+        # The bot will attempt to cancel it regardless
         for numero_cte in sorted(ctes_para_cancelar):
             if not numero_cte.isdigit():
                 print(f"⚠️ CT-e ignorado (não numérico): {numero_cte}")
@@ -2326,16 +2448,34 @@ def validar_e_cancelar_ctes(relatorio_bsoft_path, root):
             try:
                 bot_cte.cancel_cte(numero_cte)
                 ctes_cancelados += 1
+                print(f"✅ CT-e {numero_cte} cancelado")
             except Exception as e:
                 print(f"⚠️ Erro ao cancelar CT-e {numero_cte}: {str(e)}")
                 ctes_com_erro += 1
         
         # Show results
-        print(f"\n📊 Validação e cancelamento concluídos.")
-        print(f"✅ CT-es cancelados: {ctes_cancelados}")
-        print(f"⚠️ CT-es com erro: {ctes_com_erro}")
+        print(f"\n📊 VALIDAÇÃO E CANCELAMENTO CONCLUÍDOS")
+        print(f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        print(f"CT-es no B-soft: {len(ctes_bsoft)}")
+        print(f"CT-es na API:")
+        print(f"  - Loglife: {len(ctes_api_loglife)}")
+        print(f"  - Complementares: {len(ctes_api_complementary)}")
+        print(f"  - Total único: {len(ctes_api_all)}")
+        print(f"\nCancelamentos:")
+        print(f"  ✅ Sucesso: {ctes_cancelados}")
+        print(f"  ⚠️ Erros: {ctes_com_erro}")
+        print(f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
         
-        result_message = f"Validação concluída!\n\nCT-es do B-soft: {len(ctes_bsoft)}\nCT-es na API: {len(ctes_api)}\n\nCT-es cancelados: {ctes_cancelados}\nCT-es com erro: {ctes_com_erro}"
+        result_message = (
+            f"Validação concluída!\n\n"
+            f"CT-es no B-soft: {len(ctes_bsoft)}\n"
+            f"CT-es na API:\n"
+            f"  Loglife: {len(ctes_api_loglife)}\n"
+            f"  Complementares: {len(ctes_api_complementary)}\n"
+            f"  Total: {len(ctes_api_all)}\n\n"
+            f"Cancelados: {ctes_cancelados}\n"
+            f"Erros: {ctes_com_erro}"
+        )
         confirmation_pop_up(root, result_message)
         
     except Exception as e:

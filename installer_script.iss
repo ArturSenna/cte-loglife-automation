@@ -2,8 +2,13 @@
 ; This script creates a professional installer for the application
 ; Download Inno Setup from: https://jrsoftware.org/isdl.php
 
+; Read version from VERSION file
+#define VersionFile FileOpen("botCTE\VERSION")
+#define MyAppVersion FileRead(VersionFile)
+#expr FileClose(VersionFile)
+#define MyAppVersion Trim(MyAppVersion)
+
 #define MyAppName "CTe LogLife"
-#define MyAppVersion "3.0"
 #define MyAppPublisher "LogLife"
 #define MyAppURL "https://transportebiologico.com.br"
 #define MyAppExeName "CTe LogLife.exe"
