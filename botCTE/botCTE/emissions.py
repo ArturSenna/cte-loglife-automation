@@ -1,6 +1,7 @@
 import datetime as dt
 import os
 import time
+import traceback
 from datetime import datetime
 import requests
 import numpy as np
@@ -1926,7 +1927,7 @@ def cte_list_grouped(start_date, final_date, folderpath, cte_folder, root):
         report.at[current_row, 'CTE LOGLIFE'] = cte_llm
 
         csv_report = pd.DataFrame({
-            'Protocolo': [int(protocol)],
+            'Protocolo': [prot_list],
             'CTE Loglife': [cte_llm],
             'Data Emissão CTE': [report_date]
         })
@@ -1934,7 +1935,7 @@ def cte_list_grouped(start_date, final_date, folderpath, cte_folder, root):
         cte_file = f'{str(cte_llm).zfill(8)}.pdf'
 
         cte_csv = pd.DataFrame({
-            'Protocolo': [int(protocol)],
+            'Protocolo': [prot_list],
             'Arquivo PDF': [cte_file],
         })
 

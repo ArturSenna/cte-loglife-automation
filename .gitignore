@@ -20,7 +20,11 @@ dist/
 
 # PyInstaller
 *.manifest
-*.spec
+# Keep our custom spec file
+!CTe_LogLife.spec
+
+# Installer output
+installer_output/
 
 # IDEs
 .idea/

@@ -14,6 +14,8 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+
 
 # import xlwings as xw
 # from pythoncom import CoInitialize
@@ -239,7 +241,7 @@ class RequestDataFrame:
 
 def confirmation_pop_up(root, text):
     pop = Toplevel(root)
-    pop.iconbitmap('my_icon.ico')
+    pop.iconbitmap(os.path.join(_SCRIPT_DIR, "my_icon.ico"))
     pop.attributes('-topmost', 'true')
     pop.geometry("")
     pop.title("Confirmação")
