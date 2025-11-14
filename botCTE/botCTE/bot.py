@@ -393,6 +393,146 @@ class Bot(DesktopBot):
         #     message="Task Finished OK."
         # )
 
+    def cancel_cte(self, numero_cte):
+        """
+        Cancel a single CTe document via UI automation.
+        Args:
+            numero_cte: CTe number to cancel
+        Raises:
+            Exception if cancellation fails
+        """
+        print(f"\n🔄 Cancelando CT-e: {numero_cte}")
+
+        if not self.find("2consultas", matching=0.97, waiting_time=30000):
+            raise Exception("Elemento '2consultas' não encontrado")
+        self.click()
+        self.wait(500)
+
+        # Clear field
+        if not self.find("10ClicarBordaInferior", matching=0.97, waiting_time=5000):
+            raise Exception("Campo para digitar CT-e não encontrado ('10ClicarBordaInferior')")
+        x, y, w, h = self.get_last_element()
+        self.click_at(x + int(w * 0.5), y + h - 1)
+        self.wait(500)
+        self.control_a()
+        self.wait(300)
+        self.delete()
+        self.wait(100)
+
+        # Type CTe number
+        self.type_keys(str(numero_cte))
+        self.wait(200)
+
+        # Search and process
+        if not self.find("4Localizar", matching=0.97, waiting_time=5000):
+            raise Exception("Elemento '4Localizar' não encontrado")
+        self.click()
+        self.wait(200)
+
+        if not self.find("5duploClickStatus", matching=0.97, waiting_time=5000):
+            raise Exception("Elemento '5duploClickStatus' não encontrado")
+        self.double_click()
+        self.wait(200)
+
+        if not self.find("5.1ct-e", matching=0.97, waiting_time=10000):
+            raise Exception("Elemento '5.1ct-e' não encontrado")
+        self.click()
+        self.wait(200)
+
+        # Click cancel button
+        if not self.find("5.2Cancelar_CTE", matching=0.97, waiting_time=10000):
+            raise Exception("Elemento '5.2Cancelar_CTE' não encontrado")
+        self.click()
+        self.wait(200)
+
+        # Type cancellation reason
+        self.type_keys("TRANSPORTE CANCELADO")
+        self.wait(200)
+
+        # Confirm cancellation
+        if not self.find("8confirmar", matching=0.97, waiting_time=10000):
+            raise Exception("Elemento '8confirmar' não encontrado")
+        self.click()
+        self.wait(200)
+
+        # Confirm success popup
+        if self.find("9-sucesso", matching=0.97, waiting_time=20000):
+            self.enter()
+            print("✅ Pop-up de sucesso confirmado.")
+        else:
+            raise Exception("Pop-up '9-sucesso' não encontrado.")
+
+        print(f"✅ CT-e {numero_cte} cancelado com sucesso!")
+
+    
+    def icms_slip_entry(self, cte_number, slip_value, supplier, cost_center, barcode_number):
+        print(f"\n🔄 Lançando guia do CT-e: {cte_number}")
+
+        if not self.find("icms_start", matching=0.97, waiting_time=30000):
+            raise Exception("Elemento 'icms_start' não encontrado")
+        self.click()
+
+        if self.find("icms_document", matching=0.97, waiting_time=10000):
+            x, y, w, h = self.get_last_element()
+            self.click_at(x + w // 2, y + 1.5*h)
+            self.wait(200)
+            self.type_keys(str(cte_number))
+            self.wait(500)
+            self.tab()
+            self.tab()
+            self.tab()
+            self.type_keys(str(slip_value))
+        else:
+            raise Exception("Elemento 'icms_document' não encontrado")
+        
+        if self.find("icms_state", matching=0.97, waiting_time=10000):
+            x, y, w, h = self.get_last_element()
+            self.click_at(x + w // 2, y + 1.5*h)
+            self.wait(200)
+            self.type_keys(supplier)
+            self.enter()
+        else:
+            raise Exception("Elemento 'icms_state' não encontrado")
+        
+        if self.find("icms_cost_center", matching=0.97, waiting_time=10000):
+            x, y, w, h = self.get_last_element()
+            self.click_at(x + w // 2, y + 1.5*h)
+            self.wait(200)
+            self.type_keys(cost_center)
+            self.enter()
+
+
+        else:
+            raise Exception("Elemento 'icms_cost_center' não encontrado")
+        
+        if not self.find("icms_payment", matching=0.97, waiting_time=30000):
+            raise Exception("Elemento 'icms_payment' não encontrado")
+        self.click()
+
+        if self.find("icms_bank", matching=0.97, waiting_time=10000):
+            x, y, w, h = self.get_last_element()
+            self.click_at(x + w // 2, y + 1.5*h)
+            self.wait(200)
+            self.type_keys("BANCO BRADESCO")
+            self.enter()
+        else:
+            raise Exception("Elemento 'icms_bank' não encontrado")
+        
+        if self.find("icms_barcode", matching=0.97, waiting_time=10000):
+            x, y, w, h = self.get_last_element()
+            self.click_at(x + w // 2, y + 1.5*h)
+            self.wait(200)
+            self.type_keys(str(barcode_number))
+            self.enter()
+        else:
+            raise Exception("Elemento 'icms_barcode' não encontrado")
+        
+        if not self.find("icms_confirm", matching=0.97, waiting_time=30000):
+            raise Exception("Elemento 'icms_confirm' não encontrado")
+        self.click()
+
+        self.wait(500)
+        
 
 if __name__ == '__main__':
     Bot.main()

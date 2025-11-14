@@ -40,6 +40,36 @@ state_capitals = {
     'TO':    'Palmas',         'TOCANTINS':               'Palmas',
 }
 
+state_full_name = {
+    'AC':    'ESTADO DO ACRE',
+    'AL':    'ESTADO DE ALAGOAS',
+    'AP':    'ESTADO DO AMAPA',
+    'AM':    'ESTADO DO AMAZONAS',
+    'BA':    'ESTADO DA BAHIA',
+    'CE':    'ESTADO DO CEARA',
+    'DF':    'ESTADO DO DISTRITO FEDERAL',
+    'ES':    'ESTADO DO ESPÍRITO SANTO',
+    'GO':    'ESTADO DE GOIAS',
+    'MA':    'ESTADO DO MARANHÃO',
+    'MT':    'ESTADO DO MATO GROSSO',
+    'MS':    'ESTADO DO MATO GROSSO DO SUL',
+    'MG':    'ESTADO DE MINAS GERAIS',
+    'PA':    'ESTADO DO PARÁ',
+    'PB':    'ESTADO DA PARAIBA',
+    'PR':    'ESTADO DO PARANA',
+    'PE':    'ESTADO DE PERNAMBUCO',
+    'PI':    'ESTADO DO PIAUI',
+    'RJ':    'ESTADO DO RIO DE JANEIRO',
+    'RN':    'ESTADO DO RIO GRANDE DO NORTE',
+    'RS':    'ESTADO DO RIO GRANDE DO SUL',
+    'RO':    'ESTADO DE RONDONIA',
+    'RR':    'ESTADO DE RORAIMA',
+    'SC':    'ESTADO DE SANTA CATARINA',
+    'SP':    'ESTADO DE SAO PAULO',
+    'SE':    'ESTADO DE SERGIPE',
+    'TO':    'ESTADO DO TOCANTINS'
+}
+
 uf_base = pd.read_excel('Complementares.xlsx', sheet_name='Plan1')
 aliquota_base = pd.read_excel('Alíquota.xlsx', sheet_name='Planilha1')
 
@@ -1097,7 +1127,12 @@ def cte_unique(cal_date, cte_path, cte_folder_path, cte_type, cte_s, volumes, ro
         icms_obs = uf_base.loc[uf_base['Estado'] == uf_rem, 'Info'].values.item()
         aliq = aliquota_base.loc[aliquota_base['UF'] == uf_rem, uf_dest].values.item()
         obs_text = f'Protocolo {protocol} - {icms_obs}'
-        aliq_text = float(aliq) * 5 * 0.008
+        if cte_type == 0:
+            valor = str(sv.loc[sv['protocol'] == protocol, 'serviceIDRequested.price'].values.item())
+        else:
+            valor = "5"
+
+        aliq_text = float(aliq) * float(valor) * 0.008
         aliq_text = "{:0.2f}".format(aliq_text)
 
         if uf_rem != "MG":
@@ -1982,8 +2017,6 @@ def clear_cte_number(start_date, final_date, folderpath, root):
         by="protocol", axis=0, ascending=True, inplace=True, kind='quicksort', na_position='last'
     )
 
-    sv.to_excel("CTe simbólico.xlsx", index=False)
-
     for protocol in sv['protocol']:
 
         print(protocol)
@@ -2006,318 +2039,632 @@ def clear_cte_number(start_date, final_date, folderpath, root):
     confirmation_pop_up(root, "Numeração dos CTes simbólicos removidas do sistema.")
 
 
-def run_emissions():
-    pass
+def cte_cancel_batch(start_date, final_date, root):
+    """
+    Cancel CTe documents in batch based on date range.
+    Follows the same pattern as cte_list, cte_complimentary, etc.
+    """
+    def formatar_data(data):
+        """Format date to YYYY-MM-DD string."""
+        if isinstance(data, str):
+            for formato in ("%d/%m/%Y", "%Y-%m-%d"):
+                try:
+                    return datetime.strptime(data, formato).strftime("%Y-%m-%d")
+                except ValueError:
+                    continue
+            print(f"❌ Data inválida: {data}")
+            return None
+        elif hasattr(data, "strftime"):
+            return data.strftime("%Y-%m-%d")
+        return str(data)
 
+    # Format dates
+    di_formatted = formatar_data(start_date)
+    df_formatted = formatar_data(final_date)
 
-#### ABA CANCELAMENTO ##############################################
+    if not di_formatted or not df_formatted:
+        confirmation_pop_up(root, "❌ Datas inválidas. Cancelando consulta.")
+        return
 
+    print(f"📅 Consultando cancelamentos entre {di_formatted} e {df_formatted}")
 
-# ============================
-# Robô principal com passo a passo visual
-# ============================
+    # Query API for cancelled services
+    try:
+        df = r.request_public(
+            link=f'https://transportebiologico.com.br/api/public/service/cancelled-unsuccessful?initialDate={di_formatted}&finalDate={df_formatted}'
+        )
 
-class Bot(DesktopBot):
-    def action(self, data_inicial, data_final, execution=None):
-        # 🔄 Consulta os CT-es via API
-        self.ctes_recebidos = consultar_ctes_para_cancelar(data_inicial, data_final)
-
-        # 🔁 Cria um dicionário com {cte_loglife: protocolo}
-        mapa_ctes = {
-            item["cte_loglife"].strip(): str(item["protocol"])
-            for item in self.ctes_recebidos
-            if item.get("cte_loglife") and item.get("protocol")
-        }
-
-        # 📋 Lista de CT-es a processar
-        lista_ctes = list(mapa_ctes.keys())
-
-        if not lista_ctes:
-            print("⚠️ Nenhum CT-e encontrado para cancelamento.")
-            input("\n⏹️ Pressione Enter para fechar...")
+        if "services" not in df.columns or df.empty:
+            confirmation_pop_up(root, "⚠️ Estrutura de retorno da API inesperada. Nenhum CT-e extraído.")
             return
 
-        print(f"\n🔁 Iniciando cancelamento de {len(lista_ctes)} CT-es")
+        lista_servicos = df.iloc[0]["services"]
+        if not isinstance(lista_servicos, list):
+            confirmation_pop_up(root, "⚠️ 'services' não contém uma lista. Nenhum CT-e extraído.")
+            return
 
-        ctes_canceladas = []
-        ctes_com_erro = []
+        print(f"\n📋 {len(lista_servicos)} serviços encontrados na API.")
 
-        # 🧭 Etapas iniciais da interface
-        # if not self.find("1emissao_de_cte", matching=0.97, waiting_time=60000):
-        #     self.not_found("1emissao_de_cte")
-        #     return
-        # self.click()
-        # self.wait(1500
+        # Filter valid CTes
+        lista_filtrada = [
+            item for item in lista_servicos
+            if "cte_loglife" in item and item["cte_loglife"] and str(item["cte_loglife"]).strip() not in ["-", ""]
+        ]
+        print(f"✅ {len(lista_filtrada)} CT-es válidos para processamento.")
 
-        # 🔁 Laço principal com os CT-es da API
-        for numero_cte in lista_ctes:
+        if not lista_filtrada:
+            confirmation_pop_up(root, "⚠️ Nenhum CT-e encontrado para cancelamento.")
+            return
 
-            if not self.find("1emissao_de_cte", matching=0.97, waiting_time=30000):
-                self.not_found("1emissao_de_cte")
-                return
-            self.click()
-            self.wait(500)
+        print(f"\n🔁 Iniciando cancelamento de {len(lista_filtrada)} CT-es")
 
-            # 🧹 Limpeza inicial do campo (apenas uma vez)
-            if self.find("3N_Ct-e", matching=0.97, waiting_time=5000):
-                self.click_relative(x=20, y=20, clicks=2, interval_between_clicks=200)
-                self.backspace()
-                self.wait(500)
-
-            if not str(numero_cte).isdigit():
+        # Initialize bot
+        bot_cte = bot.Bot()
+        
+        ctes_cancelados = 0
+        ctes_com_erro = 0
+        api_success = 0
+        api_errors = 0
+        
+        # Loop through each CTe
+        for item in lista_filtrada:
+            numero_cte = str(item["cte_loglife"]).strip()
+            protocolo = str(item["protocol"])
+            
+            if not numero_cte.isdigit():
                 print(f"⚠️ CT-e ignorado (não numérico): {numero_cte}")
-
-            print(f"\n🔄 Processando CT-e: {numero_cte}")
-
+                ctes_com_erro += 1
+                continue
+            
             try:
-                # 3.2 Digitar número da CT-e
-                self.type_keys(numero_cte)
-                self.wait(500)
-
-                # 4. Clicar em localizar
-                if not self.find("4Localizar", matching=0.97, waiting_time=5000):
-                    raise Exception("Elemento '4Localizar' não encontrado")
-                self.click()
-                self.wait(1500)
-
-                # 5. Duplo clique em status
-                if not self.find("5duploClickStatus", matching=0.97, waiting_time=5000):
-                    raise Exception("Elemento '5duploClickStatus' não encontrado")
-                self.double_click()
-                self.wait(1000)
-
-                # 5.1 Se não avançar, tenta a próxima tela
-                if not self.find("5.1ct-e", matching=0.97, waiting_time=10000):
-                    raise Exception("Elemento '5.1ct-e' não encontrado")
-                self.click()
-                self.wait(1500)
-
-                # 5.2 Clica em cancelar cte
-                if not self.find("5.2Cancelar_CTE", matching=0.97, waiting_time=10000):
-                    raise Exception("Elemento '5.2Cancelar_CTE' não encontrado")
-                self.click()
-                self.wait(1000)
-
-                # Escreve o motivo do cancelamento
-                self.type_keys("transporte cancelado")
-                self.wait(1000)
-
-                # Clica em confirmar
-                if not self.find("8confirmar", matching=0.97, waiting_time=10000):
-                    raise Exception("Elemento '8confirmar' não encontrado")
-                self.click()
-                self.wait(6000)
-
-                # 🔄 Envia o protocolo com campos nulos para a API
-                protocolo = mapa_ctes.get(str(numero_cte).strip())
-                if not protocolo:
-                    print(f"⚠️ Protocolo ausente para CT-e {numero_cte}")
-                    raise Exception(f"Protocolo não encontrado para o CT-e {numero_cte}")
-
-                payload = {
-                    "data": [
-                        {
-                            "protocol": str(protocolo),
-                            "cte_loglife": None,
-                            "cte_loglife_emission_date": None
-                        }
-                    ]
-                }
-
+                # Cancel CTe via UI automation
+                bot_cte.cancel_cte(numero_cte)
+                ctes_cancelados += 1
+                
+                # Send API request to update this specific CTe
                 try:
+                    payload = {
+                        "data": [
+                            {
+                                "protocol": protocolo,
+                                "cte_loglife": None,
+                                "cte_loglife_emission_date": None
+                            }
+                        ]
+                    }
                     r.request_private(
                         link="https://transportebiologico.com.br/api/uploads/cte-loglife/json",
                         request_type="post",
                         payload=payload,
                         json=True
                     )
-                    print(f"📤 Protocolopayload {protocolo} enviado com sucesso com CT-e nulo.")
+                    print(f"📤 Protocolo {protocolo} enviado com sucesso com CT-e nulo.")
+                    api_success += 1
                 except Exception as api_error:
                     print(f"❌ Erro ao enviar protocolo {protocolo}: {api_error}")
-
-                self.wait(2000)
-
-                # 🖱️ Clique na confirmação de sucesso
-                if self.find("9-sucesso", matching=0.97, waiting_time=20000):
-                    self.enter()
-                    print("✅ Pop-up de sucesso confirmado.")
-                else:
-                    raise Exception("Pop-up '9-sucesso' não encontrado.")
-
-                print(f"✅ CT-e {numero_cte} cancelado com sucesso")
-                ctes_canceladas.append(numero_cte)
-
+                    api_errors += 1
+                    
             except Exception as e:
                 print(f"⚠️ Erro no processamento do CT-e {numero_cte}: {str(e)}")
-                ctes_com_erro.append(numero_cte)
-                # Adicionar uma lógica para resetar a tela se der erro, como voltar para a consulta
+                ctes_com_erro += 1
 
+        # Show results
         print(f"\n📊 Cancelamento concluído.")
-        print(f"✅ CT-es cancelados: {len(ctes_canceladas)} -> {ctes_canceladas}")
-        print(f"⚠️ CT-es com erro: {len(ctes_com_erro)} -> {ctes_com_erro}")
+        print(f"✅ CT-es cancelados: {ctes_cancelados}")
+        print(f"⚠️ CT-es com erro: {ctes_com_erro}")
+        print(f"📤 API atualizações bem-sucedidas: {api_success}")
+        print(f"❌ API atualizações com erro: {api_errors}")
 
-    def not_found(self, label):
-        print(f"❌ Elemento não encontrado: {label}")
+        result_message = f"Cancelamento concluído!\n\nCT-es cancelados: {ctes_cancelados}\nCT-es com erro: {ctes_com_erro}\n\nAPI atualizações: {api_success} sucesso, {api_errors} erro"
+        confirmation_pop_up(root, result_message)
 
-
-# ============================
-# Funções auxiliares
-# ============================
-
-def formatar_data(data):
-    if isinstance(data, str):
-        for formato in ("%d/%m/%Y", "%Y-%m-%d"):
-            try:
-                return datetime.strptime(data, formato).strftime("%Y-%m-%d")
-            except ValueError:
-                continue
-        print(f"❌ Data inválida: {data}")
-        return None
-    elif hasattr(data, "strftime"):
-        return data.strftime("%Y-%m-%d")
-    return str(data)
-
-
-def consultar_ctes_para_cancelar(data_inicial, data_final):
-    di_formatted = formatar_data(data_inicial)
-    df_formatted = formatar_data(data_final)
-
-    if not di_formatted or not df_formatted:
-        print("❌ Datas inválidas. Cancelando consulta.")
-        return []
-
-    print(f"📅 Consultando cancelamentos entre {di_formatted} e {df_formatted}")
-
-    r = RequestDataFrame()
-    try:
-        df = r.request_public(
-            link=f'https://transportebiologico.com.br/api/public/service/cancelled-unsuccessful?initialDate={di_formatted}&finalDate={df_formatted}'
-        )
-
-        if "services" in df.columns and not df.empty:
-            lista_servicos = df.iloc[0]["services"]
-            if not isinstance(lista_servicos, list):
-                print("⚠️ 'services' não contém uma lista. Nenhum CT-e extraído.")
-                return []
-
-            print(f"\n📋 {len(lista_servicos)} serviços encontrados na API.")
-
-            lista_filtrada = [
-                item for item in lista_servicos
-                if "cte_loglife" in item and item["cte_loglife"] and str(item["cte_loglife"]).strip() not in ["-", ""]
-            ]
-            print(f"✅ {len(lista_filtrada)} CT-es válidos para processamento.")
-            return lista_filtrada
-
-        print("⚠️ Estrutura de retorno da API inesperada. Nenhum CT-e extraído.")
-        return []
     except Exception as e:
         print(f"❌ Erro ao consultar API: {e}")
-        return []
+        confirmation_pop_up(root, f"❌ Erro ao consultar API: {e}")
 
 
-# ============================
-# Cancelamento avulso (botão: cancelar_avulso_cte)
-# ============================
-
-def cancelar_avulso_cte(numero_cte, protocolo):
-    bot = Bot()
-    print(f"\n🔄 Iniciando cancelamento avulso para o CT-e: {numero_cte}")
+def cancelar_avulso_cte(numero_cte, protocolo, root):
+    """
+    Cancel a single CTe document.
+    Follows the same pattern as other emission functions.
+    """
+    if not numero_cte or not protocolo:
+        confirmation_pop_up(root, "⚠️ CT-e e Protocolo são obrigatórios.")
+        return
 
     try:
-        # 🧭 Etapas iniciais da interface
-        if not bot.find("1emissao_de_cte", matching=0.97, waiting_time=60000):
-            raise Exception("Elemento '1emissao_de_cte' não encontrado")
-        bot.click()
-        bot.wait(1500)
-
-        if not bot.find("2consultas", matching=0.97, waiting_time=30000):
-            raise Exception("Elemento '2consultas' não encontrado")
-        bot.click()
-        bot.wait(500)
-
-        # 🧹 Limpeza do campo
-        if not bot.find("10ClicarBordaInferior", matching=0.97, waiting_time=5000):
-            raise Exception("Campo para digitar CT-e não encontrado ('10ClicarBordaInferior')")
-        x, y, w, h = bot.get_last_element()
-        bot.click_at(x + int(w * 0.5), y + h - 1)
-        bot.wait(500)
-        bot.control_a()
-        bot.wait(300)
-        bot.delete()
-        bot.wait(100)
-
-        # 3.2 Digitar número da CT-e
-        bot.type_keys(str(numero_cte))
-        bot.wait(2000)
-
-        # 4. Clicar em localizar e seguir o fluxo
-        if not bot.find("4Localizar", matching=0.97, waiting_time=5000):
-            raise Exception("Elemento '4Localizar' não encontrado")
-        bot.click()
-        bot.wait(1500)
-
-        if not bot.find("5duploClickStatus", matching=0.97, waiting_time=5000):
-            raise Exception("Elemento '5duploClickStatus' não encontrado")
-        bot.double_click()
-        bot.wait(1000)
-
-        if not bot.find("5.1ct-e", matching=0.97, waiting_time=10000):
-            raise Exception("Elemento '5.1ct-e' não encontrado")
-        bot.click()
-        bot.wait(1500)
-
-        if not bot.find("5.2Cancelar_CTE", matching=0.97, waiting_time=10000):
-            raise Exception("Elemento '5.2Cancelar_CTE' não encontrado")
-        bot.click()
-        bot.wait(1000)
-
-        bot.type_keys("transporte cancelado")
-        bot.wait(1000)
-
-        if not bot.find("8confirmar", matching=0.97, waiting_time=10000):
-            raise Exception("Elemento '8confirmar' não encontrado")
-        bot.click()
-        bot.wait(1000)
-
-        # 🔄 Envia o protocolo com campos nulos para a API
+        # Execute UI automation
+        bot_cte = bot.Bot()
+        bot_cte.cancel_cte(numero_cte)
+        
+        # Update API after successful cancellation
         payload = {
-            "data": [{"protocol": str(protocolo), "cte_loglife": None, "cte_loglife_emission_date": None}]
+            "data": [
+                {
+                    "protocol": str(protocolo),
+                    "cte_loglife": None,
+                    "cte_loglife_emission_date": None
+                }
+            ]
         }
-        r = RequestDataFrame()
         r.request_private(
             link="https://transportebiologico.com.br/api/uploads/cte-loglife/json",
             request_type="post",
-            payload=payload
+            payload=payload,
+            json=True
         )
         print(f"📤 Protocolo {protocolo} (avulso) enviado com sucesso.")
-
-        # 🖱️ Clique na confirmação de sucesso
-        if bot.find("9-sucesso", matching=0.97, waiting_time=20000):
-            x, y, w, h = bot.get_last_element()
-            bot.click_at(x + w // 2, y + h - 1)
-            bot.wait(1000)
-        else:
-            raise Exception("Pop-up '9-sucesso' não encontrado.")
-
-        print(f"✅ CT-e avulso {numero_cte} cancelado com sucesso!")
-
+        
+        confirmation_pop_up(root, f"✅ CT-e {numero_cte} cancelado com sucesso!")
     except Exception as e:
         print(f"❌ Erro fatal no cancelamento avulso do CT-e {numero_cte}: {e}")
-        # Aqui você poderia adicionar um pop-up de erro se estivesse usando uma GUI
+        confirmation_pop_up(root, f"❌ Erro no cancelamento: {str(e)}")
 
 
-# ============================
-# Execução principal (Exemplo)
-# ============================
+def validar_e_cancelar_ctes(relatorio_bsoft_path, root):
+    """
+    Validates CTes from B-Soft report against API and cancels missing ones.
+    
+    Args:
+        relatorio_bsoft_path: Path to B-Soft Excel report (.xlsx/.xls)
+        root: Tkinter root window for popup messages
+    """
+    try:
+        print("\n📋 Iniciando validação de CT-es do Relatório B-soft")
+        
+        # Read B-Soft report
+        if not relatorio_bsoft_path or relatorio_bsoft_path == 'Relatório B-soft (.xlsx/.xls)':
+            confirmation_pop_up(root, "❌ Por favor, selecione o arquivo Relatório B-soft.")
+            return
+        
+        print(f"📂 Lendo arquivo: {relatorio_bsoft_path}")
+        
+        # Try reading with different engines for compatibility
+        try:
+            df_bsoft = pd.read_excel(relatorio_bsoft_path, engine='openpyxl')
+        except:
+            df_bsoft = pd.read_excel(relatorio_bsoft_path, engine='xlrd')
+        
+        # Verify 'Nº CT-e' or 'Número' column exists
+        cte_column = None
+        if 'Nº CT-e' in df_bsoft.columns:
+            cte_column = 'Nº CT-e'
+        elif 'Número' in df_bsoft.columns:
+            cte_column = 'Número'
+        else:
+            confirmation_pop_up(root, f"❌ Coluna 'Nº CT-e' ou 'Número' não encontrada no relatório.\nColunas disponíveis: {', '.join(df_bsoft.columns)}")
+            return
+        
+        print(f"📊 Usando coluna: {cte_column}")
+        
+        # Filter out rows where 'Total' column equals 5
+        if 'Total' in df_bsoft.columns:
+            df_bsoft = df_bsoft[df_bsoft['Total'] != 5]
+            print(f"📊 Filtradas linhas com Total = 5")
+        
+        # Get CTes from B-Soft report (remove NaN, parse as int, convert to string)
+        ctes_bsoft = set()
+        for cte in df_bsoft[cte_column].dropna():
+            try:
+                # Try to convert to int first to remove decimals/formatting, then to string
+                cte_int = int(float(str(cte).strip()))
+                ctes_bsoft.add(str(cte_int))
+            except (ValueError, TypeError):
+                # If conversion fails, try as string
+                cte_str = str(cte).strip()
+                if cte_str and cte_str.lower() not in ['nan', '', '-']:
+                    ctes_bsoft.add(cte_str)
+
+        print(f"✅ {len(ctes_bsoft)} CT-es encontrados no Relatório B-soft")
+        
+        # Set date range for API query (last 90 days to cover most CTes)
+        end_date = dt.datetime.now()
+        start_date = end_date - dt.timedelta(days=90)
+        
+        di_formatted = start_date.strftime("%Y-%m-%d")
+        df_formatted = end_date.strftime("%Y-%m-%d")
+        
+        # Request CTes from API with mandatory date parameters
+        print(f"🔍 Consultando CT-es na API (período: {di_formatted} a {df_formatted})...")
+        df_api = r.request_public(
+            f'https://transportebiologico.com.br/api/public/service/with-cte?initialDate={di_formatted}&finalDate={df_formatted}'
+        )
+
+        print(df_api)
+        
+        if "services" not in df_api.columns or df_api.empty:
+            confirmation_pop_up(root, "⚠️ Estrutura de retorno da API inesperada. Nenhum CT-e extraído.")
+            return
+        
+        lista_servicos = df_api.iloc[0]["services"]
+        if not isinstance(lista_servicos, list):
+            confirmation_pop_up(root, "⚠️ 'services' não contém uma lista. Nenhum CT-e extraído.")
+            return
+        
+        print(f"\n📋 {len(lista_servicos)} serviços encontrados na API.")
+        
+        # Extract CTes from services list
+        ctes_api = set()
+        for item in lista_servicos:
+            if "cte_loglife" in item and item["cte_loglife"]:
+                cte_num = str(item["cte_loglife"]).strip()
+                if cte_num and cte_num not in ["-", ""]:
+                    ctes_api.add(cte_num)
+        
+        print(f"✅ {len(ctes_api)} CT-es encontrados na API")
+        
+        # Find CTes in B-Soft but NOT in API (these should be cancelled)
+        ctes_para_cancelar = ctes_bsoft - ctes_api
+        
+        if not ctes_para_cancelar:
+            print("✅ Todos os CT-es do B-soft foram encontrados na API. Nenhum cancelamento necessário.")
+            confirmation_pop_up(root, "✅ Todos os CT-es estão sincronizados!\nNenhum cancelamento necessário.")
+            return
+        
+        print(f"\n⚠️ {len(ctes_para_cancelar)} CT-es do B-soft NÃO estão na API e serão cancelados:")
+        for cte in sorted(ctes_para_cancelar):
+            print(f"  - {cte}")
+        
+        # Initialize bot for cancellation
+        print("\n🤖 Iniciando processo de cancelamento...")
+        bot_cte = bot.Bot()
+        
+        ctes_cancelados = 0
+        ctes_com_erro = 0
+        
+        # Cancel each CTe
+        for numero_cte in sorted(ctes_para_cancelar):
+            if not numero_cte.isdigit():
+                print(f"⚠️ CT-e ignorado (não numérico): {numero_cte}")
+                ctes_com_erro += 1
+                continue
+            
+            try:
+                bot_cte.cancel_cte(numero_cte)
+                ctes_cancelados += 1
+            except Exception as e:
+                print(f"⚠️ Erro ao cancelar CT-e {numero_cte}: {str(e)}")
+                ctes_com_erro += 1
+        
+        # Show results
+        print(f"\n📊 Validação e cancelamento concluídos.")
+        print(f"✅ CT-es cancelados: {ctes_cancelados}")
+        print(f"⚠️ CT-es com erro: {ctes_com_erro}")
+        
+        result_message = f"Validação concluída!\n\nCT-es do B-soft: {len(ctes_bsoft)}\nCT-es na API: {len(ctes_api)}\n\nCT-es cancelados: {ctes_cancelados}\nCT-es com erro: {ctes_com_erro}"
+        confirmation_pop_up(root, result_message)
+        
+    except Exception as e:
+        print(f"❌ Erro na validação de CT-es: {e}")
+        import traceback
+        traceback.print_exc()
+        confirmation_pop_up(root, f"❌ Erro na validação: {str(e)}")
+
+
+def comparar_gnre_target(relatorio_bsoft_path, relatorio_target_path, root):
+    """
+    Compares GNRE values between B-Soft and Target reports.
+    
+    Args:
+        relatorio_bsoft_path: Path to B-Soft Excel report (.xlsx/.xls)
+        relatorio_target_path: Path to Target Excel report (.xlsx/.xls)
+        root: Tkinter root window for popup messages
+    """
+    try:
+        print("\n📋 Iniciando comparação de GNRE entre B-Soft e Target")
+        
+        # Validate file paths
+        if not relatorio_bsoft_path or relatorio_bsoft_path == 'Relatório B-soft (.xlsx/.xls)':
+            confirmation_pop_up(root, "❌ Por favor, selecione o arquivo Relatório B-soft.")
+            return
+        
+        if not relatorio_target_path or relatorio_target_path == 'Relatório Target (.xlsx/.xls)':
+            confirmation_pop_up(root, "❌ Por favor, selecione o arquivo Relatório Target.")
+            return
+        
+        # Read B-Soft report
+        print(f"📂 Lendo B-Soft: {relatorio_bsoft_path}")
+        try:
+            df_bsoft = pd.read_excel(relatorio_bsoft_path, engine='openpyxl')
+        except:
+            df_bsoft = pd.read_excel(relatorio_bsoft_path, engine='xlrd')
+        
+        # Read Target report
+        print(f"📂 Lendo Target: {relatorio_target_path}")
+        try:
+            df_target = pd.read_excel(relatorio_target_path, engine='openpyxl')
+        except:
+            df_target = pd.read_excel(relatorio_target_path, engine='xlrd')
+        
+        # Verify 'Nº CT-e' or 'Número' column exists in B-Soft
+        cte_column = None
+        if 'Nº CT-e' in df_bsoft.columns:
+            cte_column = 'Nº CT-e'
+        elif 'Número' in df_bsoft.columns:
+            cte_column = 'Número'
+        else:
+            confirmation_pop_up(root, f"❌ Coluna 'Nº CT-e' ou 'Número' não encontrada no B-Soft.\nColunas disponíveis: {', '.join(df_bsoft.columns)}")
+            return
+        
+        print(f"📊 Usando coluna: {cte_column}")
+        
+        # Verify other required columns in B-Soft
+        required_bsoft_cols = ['Remetente - UF', 'Destinatário - UF', 'Total']
+        missing_bsoft = [col for col in required_bsoft_cols if col not in df_bsoft.columns]
+        if missing_bsoft:
+            confirmation_pop_up(root, f"❌ Colunas faltando no B-Soft: {', '.join(missing_bsoft)}")
+            return
+        
+        # Verify required columns in Target
+        required_target_cols = ['Chave Documento', 'Valor do GNRE', 'UF Favorecida']
+        missing_target = [col for col in required_target_cols if col not in df_target.columns]
+        if missing_target:
+            confirmation_pop_up(root, f"❌ Colunas faltando no Target: {', '.join(missing_target)}")
+            return
+        
+        # Extract CTe numbers from Target (positions 28-34 of 'Chave Documento')
+        print("🔍 Extraindo CT-es do Target...")
+        df_target['CTe_Numero'] = df_target['Chave Documento'].astype(str).str[25:34].str.strip()
+        
+        # Parse CTe numbers as integers and back to string for consistent comparison
+        df_target['CTe_Numero'] = df_target['CTe_Numero'].apply(
+            lambda x: str(int(x)) if x.isdigit() else x
+        )
+        
+        # Parse B-Soft CTe numbers
+        print("🔍 Processando CT-es do B-Soft...")
+        df_bsoft['CTe_Parsed'] = df_bsoft[cte_column].apply(
+            lambda x: str(int(float(str(x).strip()))) if pd.notna(x) else None
+        )
+        
+        # Remove rows with invalid CTe numbers
+        df_bsoft = df_bsoft[df_bsoft['CTe_Parsed'].notna()]
+        df_target = df_target[df_target['CTe_Numero'].notna()]
+        
+        print(f"✅ {len(df_bsoft)} CT-es no B-Soft")
+        print(f"✅ {len(df_target)} CT-es no Target")
+        
+        # Merge dataframes on CTe number
+        df_merged = pd.merge(
+            df_bsoft,
+            df_target[['CTe_Numero', 'Valor do GNRE', 'UF Favorecida', 'Linha Digitável']],
+            left_on='CTe_Parsed',
+            right_on='CTe_Numero',
+            how='inner'
+        )
+        
+        print(f"✅ {len(df_merged)} CT-es encontrados em ambos os relatórios")
+        
+        if df_merged.empty:
+            confirmation_pop_up(root, "⚠️ Nenhum CT-e correspondente encontrado entre os relatórios.")
+            return
+        
+        # Calculate B-Soft expected GNRE value
+        print("🧮 Calculando valores esperados de GNRE...")
+        
+        results = []
+        
+        for idx, row in df_merged.iterrows():
+            try:
+                uf_rem = row['Remetente - UF']
+                uf_dest = row['Destinatário - UF']
+                barcode = row['Linha Digitável']
+                
+                # Convert Brazilian format (comma decimal) to float
+                total_value = str(row['Total']).replace(',', '.')
+                total_value = float(total_value)
+                
+                target_gnre = str(row['Valor do GNRE']).replace(',', '.')
+                target_gnre = float(target_gnre)
+                
+                uf_favorecida = row['UF Favorecida']
+                cte_num = row['CTe_Parsed']
+                
+                # Get aliquot from aliquota_base
+                try:
+                    aliq = aliquota_base.loc[aliquota_base['UF'] == uf_rem, uf_dest].values[0]
+                    aliq = float(aliq) * 0.8
+                except (IndexError, KeyError, ValueError):
+                    print(f"⚠️ Alíquota não encontrada para {uf_rem} -> {uf_dest} (CT-e {cte_num})")
+                    aliq = 0
+                
+                # Calculate expected GNRE: (aliquot * total) / 100
+                expected_gnre = (aliq * total_value) / 100
+                
+                # Calculate difference
+                difference = expected_gnre - target_gnre
+                
+                results.append({
+                    'CT-e': cte_num,
+                    'UF Origem': uf_rem,
+                    'UF Destino': uf_dest,
+                    'UF Favorecida': uf_favorecida,
+                    'Total B-Soft': total_value,
+                    'Alíquota (%)': aliq,
+                    'GNRE Calculado': round(expected_gnre, 2),
+                    'GNRE Target': round(target_gnre, 2),
+                    'Diferença': round(difference, 2),
+                    'Linha Digitável': barcode
+                })
+                
+            except Exception as e:
+                print(f"⚠️ Erro ao processar CT-e {row.get('CTe_Parsed', 'N/A')}: {str(e)}")
+                continue
+        
+        # Create results dataframe
+        df_results = pd.DataFrame(results)
+        
+        if df_results.empty:
+            confirmation_pop_up(root, "⚠️ Nenhum resultado foi gerado.")
+            return
+        
+        # Create summary by UF Favorecida
+        print("📊 Gerando resumo por UF...")
+        summary = df_results.groupby('UF Favorecida').agg({
+            'CT-e': 'count',
+            'GNRE Calculado': 'sum',
+            'GNRE Target': 'sum',
+            'Diferença': 'sum'
+        }).reset_index()
+        
+        summary.columns = ['UF Favorecida', 'Qtd CT-es', 'Total GNRE Calculado', 'Total GNRE Target', 'Total Diferença']
+        summary['Total GNRE Calculado'] = summary['Total GNRE Calculado'].round(2)
+        summary['Total GNRE Target'] = summary['Total GNRE Target'].round(2)
+        summary['Total Diferença'] = summary['Total Diferença'].round(2)
+        
+        # Export reports
+        now = dt.datetime.now()
+        timestamp = now.strftime("%d-%m-%Y-%H-%M")
+        
+        # Get output path from 'CTe normal' folder (folderpath)
+        try:
+            with open('folderpath.txt') as f:
+                output_path = f.read().strip()
+        except FileNotFoundError:
+            # Fallback to same directory as B-Soft report
+            output_path = relatorio_bsoft_path.rsplit('\\', 1)[0] if '\\' in relatorio_bsoft_path else '.'
+        
+        output_path = output_path.replace('/', '\\')
+        output_file = f'{output_path}\\comparar-GNRE-{timestamp}.xlsx'
+        
+        # Save both sheets in a single Excel file
+        with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
+            summary.to_excel(writer, sheet_name='Resumo', index=False)
+            df_results.to_excel(writer, sheet_name='Detalhado', index=False)
+        
+        print(f"\n✅ Relatório gerado: {output_file}")
+        
+        # Create summary message
+        total_ctes = len(df_results)
+        total_diff = df_results['Diferença'].sum()
+        
+        result_message = f"Comparação GNRE concluída!\n\n"
+        result_message += f"CT-es processados: {total_ctes}\n"
+        result_message += f"Diferença total: R$ {total_diff:,.2f}\n\n"
+        result_message += f"Relatório salvo em:\n{output_file}"
+        
+        confirmation_pop_up(root, result_message)
+        
+    except Exception as e:
+        print(f"❌ Erro na comparação de GNRE: {e}")
+        import traceback
+        traceback.print_exc()
+        confirmation_pop_up(root, f"❌ Erro na comparação: {str(e)}")
+
+
+def processar_gnre_target(relatorio_target_path, root):
+    """
+    Process GNRE entries from Target report and enter them into the system.
+    
+    Args:
+        relatorio_target_path: Path to the Target Excel report
+        root: Tkinter root for popup messages
+    """
+    try:
+        print(f"\n📂 Carregando relatório Target: {relatorio_target_path}")
+        
+        # Read the Target report from "Detalhes" tab
+        df = pd.read_excel(relatorio_target_path, sheet_name='Detalhado')
+        
+        print(f"✅ Relatório carregado. Total de linhas: {len(df)}")
+        
+        # Filter out rows without GNRE values
+        df_gnre = df[df['GNRE Target'].notna() & (df['GNRE Target'] > 0)].copy()
+        
+        if df_gnre.empty:
+            confirmation_pop_up(root, "⚠️ Nenhuma GNRE encontrada para processar.")
+            return
+        
+        print(f"📋 {len(df_gnre)} GNREs para processar")
+        
+        # Initialize bot
+        bot_cte = bot.Bot()
+        
+        processados = 0
+        erros = 0
+        
+        # Process each line
+        for index, row in df_gnre.iterrows():
+            try:
+                # Extract CTe number
+                cte_number = str(row['CT-e']).strip()
+                
+                # Extract slip value
+                slip_value = row['GNRE Target']
+                
+                # Get supplier from state full name
+                uf_favorecida = str(row['UF Favorecida']).strip().upper()
+                supplier = state_full_name.get(uf_favorecida, '')
+                
+                if not supplier:
+                    print(f"⚠️ UF Favorecida não encontrada no dicionário: {uf_favorecida}")
+                    erros += 1
+                    continue
+                
+                # Get cost center from API
+                try:
+                    print(f"🔍 Consultando cost_center para CT-e {cte_number}")
+                    service_data = r.request_public(
+                        f'https://transportebiologico.com.br/api/public/service/by-cte?cteNumber={cte_number}'
+                    )
+
+                    print(service_data)
+                    
+                    if service_data.empty:
+                        print(f"⚠️ Nenhum serviço encontrado para CT-e {cte_number}")
+                        erros += 1
+                        continue
+                    
+                    # Extract cost_center from API response
+                    cost_center = service_data.cost_center[0]
+                    
+                    if not cost_center:
+                        print(f"⚠️ Cost center não encontrado para CT-e {cte_number}")
+                        erros += 1
+                        continue
+                        
+                except Exception as api_error:
+                    print(f"❌ Erro ao consultar API para CT-e {cte_number}: {api_error}")
+                    erros += 1
+                    continue
+                
+                # Extract barcode number
+                barcode_number = str(row['Linha Digitável']).strip()
+                
+                # Call Bot.icms_slip_entry
+                print(f"📝 Processando CT-e {cte_number} - Valor: R$ {slip_value:.2f}")
+                bot_cte.icms_slip_entry(
+                    cte_number=cte_number,
+                    slip_value=slip_value,
+                    supplier=supplier,
+                    cost_center=cost_center,
+                    barcode_number=barcode_number
+                )
+                
+                processados += 1
+                print(f"✅ CT-e {cte_number} processado com sucesso ({processados}/{len(df_gnre)})")
+                
+            except Exception as e:
+                print(f"❌ Erro ao processar linha {index + 1}: {e}")
+                erros += 1
+                continue
+        
+        # Show results
+        print(f"\n📊 Processamento concluído.")
+        print(f"✅ GNREs processadas: {processados}")
+        print(f"⚠️ Erros: {erros}")
+        
+        result_message = f"Processamento concluído!\n\nGNREs processadas: {processados}\nErros: {erros}"
+        confirmation_pop_up(root, result_message)
+        
+    except Exception as e:
+        print(f"❌ Erro ao processar GNREs: {e}")
+        traceback.print_exc()
+        confirmation_pop_up(root, f"❌ Erro ao processar GNREs: {str(e)}")
+
 
 if __name__ == "__main__":
-    # Exemplo de como chamar o robô principal
-    bot_principal = Bot()
-    # As datas podem vir de uma interface gráfica ou serem fixas
-    data_inicio = "2025-10-29"
-    data_fim = "2025-10-30"
-    bot_principal.action(data_inicio, data_fim)
+    run_emissions()
 
     # Exemplo de como chamar o cancelamento avulso
     # cancelar_avulso_cte(numero_cte="12345", protocolo="987654321")
