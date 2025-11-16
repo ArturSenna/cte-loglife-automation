@@ -72,9 +72,9 @@ class Bot(DesktopBot):
 
         windll.user32.EmptyClipboard()
 
-        if self.find( "Start emission", matching=0.97, waiting_time=10):
+        if self.find( "iniciarEmissao", matching=0.97, waiting_time=10):
             self.wait(500)
-            self.key_f1()
+            self.click()
 
         if not self.find( "searchSender", matching=0.97, waiting_time=10000):
             self.not_found("searchSender")

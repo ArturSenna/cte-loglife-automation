@@ -270,7 +270,7 @@ def cte_list(start_date, final_date, folderpath, cte_folder, root):
             'AGUARDANDO DISPONIBILIZAÇÃO', 'AGUARDANDO ALOCAÇÃO', 'EM ROTA DE ENTREGA', 'ENTREGANDO',
             'DISPONÍVEL PARA RETIRADA', 'DESEMBARCANDO', 'VALIDAR EMBARQUE', 'AGENDADO', 'COLETANDO',
             'EM ROTA DE EMBARQUE', 'EMBARCANDO SERVIÇO', 'FINALIZADO'],
-        default=0
+        default=''
     )
     report['DATA COLETA'] = sv['collectDateTime'].dt.strftime(date_format='%d/%m/%Y')
     report['PREÇO TRANSPORTE'] = sv['serviceIDRequested.budgetIDService.price']

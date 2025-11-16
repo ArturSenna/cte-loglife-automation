@@ -1,6 +1,0 @@
-# This file is deprecated. Please use the root requirements.txt instead.
-# All dependencies are now managed in ../requirements.txt
-# 
-# To install dependencies, run from the project root:
-# pip install -r requirements.txt
-
