@@ -14,8 +14,9 @@ from dotenv import load_dotenv
 
 # Determine the script directory (works for both normal and frozen/packaged)
 if getattr(sys, 'frozen', False):
-    # Running as compiled executable
-    _SCRIPT_DIR = os.path.dirname(sys.executable)
+    # Running as compiled executable with PyInstaller
+    # Use _MEIPASS to access bundled resources (like icon files)
+    _SCRIPT_DIR = getattr(sys, '_MEIPASS', os.path.dirname(sys.executable))
 else:
     # Running as script
     _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))

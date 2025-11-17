@@ -7,6 +7,8 @@ Modern redesigned UI for CTe management system
 import csv
 import ctypes.wintypes
 import datetime as dt
+import os
+import sys
 import threading
 import time
 from json import loads
@@ -46,16 +48,59 @@ except ImportError:
 # =============================================================================
 
 # Get the directory where this script is located
-_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+# For PyInstaller bundles, use _MEIPASS to access bundled resources
+if getattr(sys, 'frozen', False):
+    # Running as compiled executable with PyInstaller
+    _SCRIPT_DIR = getattr(sys, '_MEIPASS', os.path.dirname(sys.executable))
+else:
+    # Running as script
+    _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Read application version
-VERSION_FILE = os.path.join(os.path.dirname(_SCRIPT_DIR), 'VERSION')
-try:
-    with open(VERSION_FILE, 'r', encoding='utf-16') as f:
-        APP_VERSION = f.read().strip()
-except Exception as e:
-    print(f"Warning: Could not read VERSION file: {e}")
-    APP_VERSION = '1.0.0'
+# Support both development and PyInstaller bundled environments
+def get_app_version():
+    """Read version from VERSION file, supporting both dev and bundled environments."""
+    version_locations = []
+    
+    # When running as PyInstaller bundle, try _MEIPASS first
+    if getattr(sys, 'frozen', False):
+        # Running as compiled executable
+        bundle_dir = getattr(sys, '_MEIPASS', os.path.dirname(sys.executable))
+        version_locations.append(os.path.join(bundle_dir, 'VERSION'))
+        version_locations.append(os.path.join(os.path.dirname(sys.executable), 'VERSION'))
+    
+    # Development environment locations
+    version_locations.append(os.path.join(os.path.dirname(_SCRIPT_DIR), 'VERSION'))
+    version_locations.append(os.path.join(_SCRIPT_DIR, 'VERSION'))
+    
+    # Try each location
+    for version_file in version_locations:
+        if os.path.exists(version_file):
+            try:
+                # Try UTF-8 first (standard encoding)
+                with open(version_file, 'r', encoding='utf-8') as f:
+                    version = f.read().strip()
+                    if version:
+                        print(f"Version loaded from: {version_file}")
+                        return version
+            except (UnicodeError, UnicodeDecodeError):
+                # Fallback to UTF-16
+                try:
+                    with open(version_file, 'r', encoding='utf-16') as f:
+                        version = f.read().strip()
+                        if version:
+                            print(f"Version loaded from: {version_file}")
+                            return version
+                except Exception:
+                    pass
+            except Exception as e:
+                print(f"Could not read VERSION from {version_file}: {e}")
+                continue
+    
+    print("Warning: VERSION file not found in any expected location")
+    return '1.0.0'
+
+APP_VERSION = get_app_version()
 
 APP_TITLE = 'CTe LogLife'
 APP_ICON = os.path.join(_SCRIPT_DIR, "my_icon.ico")

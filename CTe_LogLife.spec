@@ -69,6 +69,14 @@ datas += [
     (os.path.join(botcte_dir, 'Alíquota.xlsx'), '.'),
 ]
 
+# Add VERSION file from parent botCTE directory
+version_file = os.path.join(base_dir, 'botCTE', 'VERSION')
+if os.path.exists(version_file):
+    datas += [(version_file, '.')]
+    print(f"[INFO] Including VERSION file from: {version_file}")
+else:
+    print("[WARNING] VERSION file not found - version may not display correctly")
+
 # Add .env file if it exists in the botCTE directory
 env_file = os.path.join(botcte_dir, '.env')
 if os.path.exists(env_file):
@@ -117,6 +125,7 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     icon=os.path.join(botcte_dir, 'my_icon.ico'),
+    uac_admin=True,  # Require administrator privileges to run
 )
 
 coll = COLLECT(

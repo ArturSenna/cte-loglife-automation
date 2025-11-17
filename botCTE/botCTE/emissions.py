@@ -1,5 +1,6 @@
 import datetime as dt
 import os
+import sys
 import time
 import traceback
 from datetime import datetime
@@ -70,7 +71,13 @@ state_full_name = {
 }
 
 # Get the directory where this script is located
-_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+# For PyInstaller bundles, use _MEIPASS to access bundled resources
+if getattr(sys, 'frozen', False):
+    # Running as compiled executable with PyInstaller
+    _SCRIPT_DIR = getattr(sys, '_MEIPASS', os.path.dirname(sys.executable))
+else:
+    # Running as script
+    _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 uf_base = pd.read_excel(os.path.join(_SCRIPT_DIR, 'Complementares.xlsx'), sheet_name='Plan1')
 aliquota_base = pd.read_excel(os.path.join(_SCRIPT_DIR, 'Alíquota.xlsx'), sheet_name='Planilha1')
