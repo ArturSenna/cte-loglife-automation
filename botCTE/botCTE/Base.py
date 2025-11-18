@@ -149,10 +149,20 @@ DEFAULT_MESSAGES = {
 def read_config_file(filename, default_value):
     """Read configuration file and return content or default value."""
     try:
+        # Try UTF-8 first
         with open(filename, 'r', encoding='utf-8') as f:
             text = f.read()
         lines = text.split('\n')
         return lines[0] if lines else default_value
+    except UnicodeDecodeError:
+        # If UTF-8 fails, try Windows-1252 (common in Windows)
+        try:
+            with open(filename, 'r', encoding='windows-1252') as f:
+                text = f.read()
+            lines = text.split('\n')
+            return lines[0] if lines else default_value
+        except Exception:
+            return default_value
     except FileNotFoundError:
         return default_value
 

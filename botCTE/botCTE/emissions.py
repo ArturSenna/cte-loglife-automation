@@ -41,33 +41,33 @@ state_capitals = {
 }
 
 state_full_name = {
-    'AC':    'ESTADO DO ACRE',
-    'AL':    'ESTADO DE ALAGOAS',
-    'AP':    'ESTADO DO AMAPA',
-    'AM':    'ESTADO DO AMAZONAS',
-    'BA':    'ESTADO DA BAHIA',
-    'CE':    'ESTADO DO CEARA',
-    'DF':    'ESTADO DO DISTRITO FEDERAL',
-    'ES':    'ESTADO DO ESPÍRITO SANTO',
-    'GO':    'ESTADO DE GOIAS',
-    'MA':    'ESTADO DO MARANHÃO',
-    'MT':    'ESTADO DO MATO GROSSO',
-    'MS':    'ESTADO DO MATO GROSSO DO SUL',
-    'MG':    'ESTADO DE MINAS GERAIS',
-    'PA':    'ESTADO DO PARÁ',
-    'PB':    'ESTADO DA PARAIBA',
-    'PR':    'ESTADO DO PARANA',
-    'PE':    'ESTADO DE PERNAMBUCO',
-    'PI':    'ESTADO DO PIAUI',
-    'RJ':    'ESTADO DO RIO DE JANEIRO',
-    'RN':    'ESTADO DO RIO GRANDE DO NORTE',
-    'RS':    'ESTADO DO RIO GRANDE DO SUL',
-    'RO':    'ESTADO DE RONDONIA',
-    'RR':    'ESTADO DE RORAIMA',
-    'SC':    'ESTADO DE SANTA CATARINA',
-    'SP':    'ESTADO DE SAO PAULO',
-    'SE':    'ESTADO DE SERGIPE',
-    'TO':    'ESTADO DO TOCANTINS'
+    'AC':    '3154', # ESTADO DO ACRE
+    'AL':    '523', # ESTADO DE ALAGOAS
+    'AP':    '3256', # ESTADO DO AMAPA
+    'AM':    '1946', # ESTADO DO AMAZONAS
+    'BA':    '1924', # ESTADO DA BAHIA
+    'CE':    '1702', # ESTADO DO CEARA
+    'DF':    '1617', # ESTADO DO DISTRITO FEDERAL (BRASILIA)
+    'ES':    '1891', # ESTADO DO ESPÍRITO SANTO
+    'GO':    '1620', # ESTADO DE GOIAS
+    'MA':    '1973', # ESTADO DO MARANHÃO
+    'MT':    '1783', # ESTADO DO MATO GROSSO
+    'MS':    '2053', # ESTADO DO MATO GROSSO DO SUL
+    'MG':    '80', # ESTADO DE MINAS GERAIS
+    'PA':    '1890', # ESTADO DO PARÁ
+    'PB':    '1925', # ESTADO DA PARAIBA
+    'PR':    '1784', # ESTADO DO PARANA
+    'PE':    '1388', # ESTADO DE PERNAMBUCO
+    'PI':    '1535', # ESTADO DO PIAUI
+    'RJ':    '1389', # ESTADO DO RIO DE JANEIRO
+    'RN':    '1391', # ESTADO DO RIO GRANDE DO NORTE
+    'RS':    '1409', # ESTADO DO RIO GRANDE DO SUL
+    'RO':    '3782', # ESTADO DE RONDONIA
+    'RR':    '1926', # ESTADO DE RORAIMA
+    'SC':    '1569', # ESTADO DE SANTA CATARINA
+    'SP':    '1390', # ESTADO DE SAO PAULO
+    'SE':    '1927', # ESTADO DE SERGIPE
+    'TO':    '2496', # ESTADO DO TOCANTINS
 }
 
 # Get the directory where this script is located

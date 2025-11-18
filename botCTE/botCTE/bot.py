@@ -487,7 +487,7 @@ class Bot(DesktopBot):
         
         if self.find("icms_state", matching=0.97, waiting_time=10000):
             x, y, w, h = self.get_last_element()
-            self.click_at(x + w // 2, y + 1.5*h)
+            self.click_at(x + w // 2, y + h)
             self.wait(200)
             self.type_keys(supplier)
             self.enter()
