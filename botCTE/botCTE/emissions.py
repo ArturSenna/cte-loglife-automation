@@ -315,8 +315,6 @@ def cte_list(start_date, final_date, folderpath, cte_folder, root):
 
         report_date = dt.datetime.strftime(dt.datetime.now(), '%d/%m/%Y')
 
-        print(protocol)
-
         tomador_cnpj = sv.loc[sv['protocol'] == protocol, 'customerIDService.cnpj_cpf'].values.item()
         source_add = sv.loc[sv['protocol'] == protocol, 'serviceIDRequested.source_address_id'].values.item()
         destination_add = sv.loc[sv['protocol'] == protocol, 'serviceIDRequested.destination_address_id'].values.item()
@@ -363,13 +361,24 @@ def cte_list(start_date, final_date, folderpath, cte_folder, root):
         cte_llm = int(bot_cte.get_clipboard())
 
         report.at[report.index[current_row], 'CTE LOGLIFE'] = cte_llm
-
-        csv_report = pd.DataFrame({
-            'Protocolo': [int(protocol)],
-            'CTE Loglife': [cte_llm],
-            'Data Emissão CTE': [report_date]
-        })
-
+        
+        payload = {
+            "data": [
+                {
+                    "protocol": str(protocol),
+                    "cte_loglife": cte_llm,
+                    "cte_loglife_emission_date": report_date
+                }
+            ]
+        }
+        
+        r.request_private(
+            link="https://transportebiologico.com.br/api/uploads/cte-loglife/json",
+            request_type="post",
+            payload=payload,
+            json=True
+        )
+        
         cte_file = f'{str(cte_llm).zfill(8)}.pdf'
 
         cte_csv = pd.DataFrame({
@@ -381,11 +390,6 @@ def cte_list(start_date, final_date, folderpath, cte_folder, root):
             excel_file,
             index=False
         )
-
-        csv_report = csv_report.astype(str)
-        csv_report = csv_report.replace(to_replace="\.0+$", value="", regex=True)
-
-        csv_report.to_csv(csv_file, index=False, encoding='utf-8')
 
         cte_csv.to_csv(csv_associate, index=False, encoding='utf-8')
 
@@ -860,6 +864,24 @@ def cte_complimentary(start_date, final_date, cte_comp_path, cte_folder, root, u
         )
 
         cte_llm_complimentary = int(bot_cte.get_clipboard())
+        
+        payload = {
+            "data": [
+                {
+                    "protocol": protocol,
+                    "cte_complementary": cte_llm_complimentary,
+                    "cte_complementary_emission_date": report_date
+                }
+            ]
+        }
+        
+        r.request_private(
+            link="https://transportebiologico.com.br/api/uploads/cte-complementary/json",
+            request_type="post",
+            payload=payload,
+            json=True
+        
+        )
         report.at[report.index[current_row], 'CTE Complementar'] = cte_llm_complimentary
 
         cte_file = f'{str(cte_llm_complimentary).zfill(8)}.pdf'
@@ -870,17 +892,6 @@ def cte_complimentary(start_date, final_date, cte_comp_path, cte_folder, root, u
         })
 
         report.to_excel(excel_file, index=False)
-
-        csv_report = pd.DataFrame({
-            'Protocolo': [int(protocol)],
-            'CTE Complementar': [cte_llm_complimentary],
-            'Data Emissão CTE': [report_date]
-        })
-
-        csv_report = csv_report.astype(str)
-        csv_report = csv_report.replace(to_replace="\.0+$", value="", regex=True)
-
-        csv_report.to_csv(csv_file, index=False, encoding='utf-8')
 
         cte_csv.to_csv(csv_associate, index=False, encoding='utf-8')
 
@@ -902,8 +913,6 @@ def cte_complimentary(start_date, final_date, cte_comp_path, cte_folder, root, u
         third_response = r.post_file('https://transportebiologico.com.br/api/pdf/associate',
                                      csv_associate,
                                      upload_type="CTE COMPLEMENTAR")
-
-        csv_report.to_csv(csv_file, index=False, encoding='utf-8')
 
         print(first_response, second_response, third_response)
         print(first_response.text, second_response.text, third_response.text)
@@ -1080,7 +1089,7 @@ def cte_unique(cal_date, cte_path, cte_folder_path, cte_type, cte_s, volumes, ro
             'AGUARDANDO DISPONIBILIZAÇÃO', 'AGUARDANDO ALOCAÇÃO', 'EM ROTA DE ENTREGA', 'ENTREGANDO',
             'DISPONÍVEL PARA RETIRADA', 'DESEMBARCANDO', 'VALIDAR EMBARQUE', 'AGENDADO', 'COLETANDO',
             'EM ROTA DE EMBARQUE', 'EMBARCANDO SERVIÇO', 'FINALIZADO'],
-        default=0
+        default=''
     )
     report['DATA COLETA'] = sv['collectDateTime'].dt.strftime(date_format='%d/%m/%Y')
     report['PREÇO TRANSPORTE'] = sv['serviceIDRequested.budgetIDService.price']
@@ -1497,24 +1506,29 @@ def cte_symbolic(start_date, final_date, folderpath, cte_folder, root):
         )
 
         cte_llm = int(bot_cte.get_clipboard())
+        
+        payload = {
+            "data": [
+                {
+                    "protocol": int(protocol),
+                    "cte_loglife": cte_llm,
+                    "cte_loglife_emission_date": report_date,
+                    "symbolic": True
+                }
+            ]
+        }
+        
+        r.request_private(
+            link="https://transportebiologico.com.br/api/uploads/cte-loglife/json",
+            request_type="post",
+            payload=payload,
+            json=True
+        )
 
         cte_file = f'{str(cte_llm).zfill(8)}.pdf'
 
         report.at[report.index[current_row], 'CTE LOGLIFE'] = cte_llm
         report.to_excel(excel_file, index=False)
-
-        csv_report = pd.DataFrame({
-            'Protocolo': [int(protocol)],
-            'CTE Loglife': [cte_llm],
-            'Data Emissão CTE': [report_date]
-        })
-
-        csv_report = csv_report.astype(str)
-        csv_report = csv_report.replace(to_replace="\.0+$", value="", regex=True)
-
-        csv_report.to_csv(csv_file, index=False)
-
-        r.post_file('https://transportebiologico.com.br/api/uploads/cte-loglife', csv_file)
 
         associate = pd.DataFrame({
             'Protocolo': [int(protocol)],
