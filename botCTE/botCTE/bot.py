@@ -1,6 +1,7 @@
 from botcity.core import DesktopBot
 from ctypes import windll
 import time
+from datetime import datetime, date
 
 
 # Uncomment the line below for integrations with BotMaestro
@@ -186,7 +187,7 @@ class Bot(DesktopBot):
             self.paste(str(int(volumes) * 2))
             self.tab()
             self.tab(wait=500)
-            self.paste(str(volumes))
+            self.type_keys(str(volumes))
         if cte_instance == 1:
             self.paste(str(int(volumes) * 2))
             self.tab()
@@ -195,7 +196,7 @@ class Bot(DesktopBot):
             self.paste(str(int(volumes) * 2))
             self.tab()
             self.tab(wait=500)
-            self.paste(str(volumes))
+            self.type_keys(str(volumes))
 
         if not self.find( "confirmNAT", matching=0.97, waiting_time=10000):
             self.not_found("confirmNAT")
@@ -206,9 +207,9 @@ class Bot(DesktopBot):
                             cte=None
                             ):
 
-        if self.find( "Start emission", matching=0.97, waiting_time=100000):
+        if self.find( "iniciarEmissao", matching=0.97, waiting_time=10):
             self.wait(500)
-            self.key_f1()
+            self.click()
 
         if not self.find( "emissionComp", matching=0.97, waiting_time=60000):
             self.not_found("emissionComp")
@@ -465,8 +466,14 @@ class Bot(DesktopBot):
         print(f"✅ CT-e {numero_cte} cancelado com sucesso!")
 
     
-    def icms_slip_entry(self, cte_number, slip_value, supplier, cost_center, barcode_number):
+    def icms_slip_entry(self, cte_number, slip_value, supplier, cost_center, barcode_number, emission_date):
         print(f"\n🔄 Lançando guia do CT-e: {cte_number}")
+        
+        change_due_date = False
+        # Inside the function:
+        provided_date = datetime.strptime(str(emission_date), "%d/%m/%Y").date()
+        if provided_date != date.today():
+            change_due_date = True
 
         if not self.find("icms_start", matching=0.97, waiting_time=30000):
             raise Exception("Elemento 'icms_start' não encontrado")
@@ -478,8 +485,52 @@ class Bot(DesktopBot):
             self.wait(200)
             self.type_keys(str(cte_number))
             self.wait(500)
-            self.tab()
-            self.tab()
+                    
+            if change_due_date:
+                if self.find("icms_emission_date", matching=0.97, waiting_time=10000):
+                    x, y, w, h = self.get_last_element()
+                    self.click_at(x + w // 2, y + 1.5*h)
+                    self.wait(300)
+                    self.click_at(x + w // 2, y + 1.5*h)
+                    self.type_keys(str(emission_date))
+                else:
+                    raise Exception("Elemento 'icms_emission_date' não encontrado")
+                
+                if self.find("icms_payment_date", matching=0.97, waiting_time=10000):
+                    x, y, w, h = self.get_last_element()
+                    self.click_at(x + w // 2, y + 1.5*h)
+                    self.wait(300)
+                    self.click_at(x + w // 2, y + 1.5*h)
+                    self.type_keys(str(emission_date))
+                else:
+                    raise Exception("Elemento 'icms_payment_date' não encontrado")
+
+
+                # if self.find("icms_payment_type", matching=0.97, waiting_time=10000):
+                #     x, y, w, h = self.get_last_element()
+                #     self.click_at(x + w // 2, y + 1.5*h)
+                #     self.wait(200)
+                #     self.type_down()
+                #     self.enter()
+                # else:
+                #     raise Exception("Elemento 'icms_payment_type' não encontrado")
+                
+                # if not self.find("icms_due_date", matching=0.97, waiting_time=10000):
+                #     raise Exception("Elemento 'icms_due_date' não encontrado")
+                # self.click()
+                
+                # if self.find("icms_due_date_selected", matching=0.97, waiting_time=10000):
+                #     x, y, w, h = self.get_last_element()
+                #     self.click_at(x + w // 2, y + 1.5*h)
+                #     self.wait(300)
+                #     self.click_at(x + w // 2, y + 1.5*h)
+                #     self.type_keys(str(emission_date))
+                # else:
+                #     raise Exception("Elemento 'icms_due_date_selected' não encontrado")
+            else:
+                self.tab()
+                self.tab()
+
             self.tab()
             self.type_keys(str(slip_value))
         else:
@@ -526,6 +577,13 @@ class Bot(DesktopBot):
             self.enter()
         else:
             raise Exception("Elemento 'icms_barcode' não encontrado")
+        
+        if self.find("icms_obs", matching=0.97, waiting_time=10000):
+            self.click()
+            self.wait(200)
+            self.type_keys(f"REF. A ICMS ST {emission_date}")
+        else:
+            raise Exception("Elemento 'icms_obs' não encontrado")
         
         if not self.find("icms_confirm", matching=0.97, waiting_time=30000):
             raise Exception("Elemento 'icms_confirm' não encontrado")

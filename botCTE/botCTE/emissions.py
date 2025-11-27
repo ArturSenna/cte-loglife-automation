@@ -393,8 +393,6 @@ def cte_list(start_date, final_date, folderpath, cte_folder, root):
 
         cte_csv.to_csv(csv_associate, index=False, encoding='utf-8')
 
-        r.post_file('https://transportebiologico.com.br/api/uploads/cte-loglife', csv_file)
-
         while True:
             try:
                 r.post_file("https://transportebiologico.com.br/api/pdf",
@@ -868,7 +866,7 @@ def cte_complimentary(start_date, final_date, cte_comp_path, cte_folder, root, u
         payload = {
             "data": [
                 {
-                    "protocol": protocol,
+                    "protocol": str(protocol),
                     "cte_complementary": cte_llm_complimentary,
                     "cte_complementary_emission_date": report_date
                 }
@@ -894,12 +892,10 @@ def cte_complimentary(start_date, final_date, cte_comp_path, cte_folder, root, u
         report.to_excel(excel_file, index=False)
 
         cte_csv.to_csv(csv_associate, index=False, encoding='utf-8')
-
-        first_response = r.post_file('https://transportebiologico.com.br/api/uploads/cte-complementary', csv_file)
-
+        
         while True:
             try:
-                second_response = r.post_file("https://transportebiologico.com.br/api/pdf",
+                r.post_file("https://transportebiologico.com.br/api/pdf",
                                               f'{cte_folder_path}\\{cte_file}',
                                               upload_type="CTE COMPLEMENTAR",
                                               file_format="application/pdf",
@@ -907,15 +903,11 @@ def cte_complimentary(start_date, final_date, cte_comp_path, cte_folder, root, u
                 break
             except FileNotFoundError:
                 time.sleep(0.5)
-                second_response = 0
                 continue
 
-        third_response = r.post_file('https://transportebiologico.com.br/api/pdf/associate',
+        r.post_file('https://transportebiologico.com.br/api/pdf/associate',
                                      csv_associate,
                                      upload_type="CTE COMPLEMENTAR")
-
-        print(first_response, second_response, third_response)
-        print(first_response.text, second_response.text, third_response.text)
 
         current_row += 1
 
@@ -1223,6 +1215,39 @@ def cte_unique(cal_date, cte_path, cte_folder_path, cte_type, cte_s, volumes, ro
         cte_llm = int(bot_cte.get_clipboard())
 
         cte_file = f'{str(cte_llm).zfill(8)}.pdf'
+        
+        if cte_type == 0:
+        
+            payload = {
+                "data": [
+                    {
+                        "protocol": str(protocol),
+                        "cte_loglife": cte_llm,
+                        "cte_loglife_emission_date": report_date
+                    }
+                ]
+            }
+        
+        else:
+            
+            payload = {
+                "data": [
+                    {
+                        "protocol": str(protocol),
+                        "cte_loglife": cte_llm,
+                        "cte_loglife_emission_date": report_date,
+                        "symbolic": True
+                    }
+                ]
+            }
+        
+
+        r.request_private(
+            link="https://transportebiologico.com.br/api/uploads/cte-loglife/json",
+            request_type="post",
+            payload=payload,
+            json=True
+        )
 
         report.at[report.index[current_row], 'CTE LOGLIFE'] = cte_llm
         report.to_excel(excel_file, index=False)
@@ -2554,7 +2579,7 @@ def comparar_gnre_target(relatorio_bsoft_path, relatorio_target_path, root):
         print(f"📊 Usando coluna: {cte_column}")
         
         # Verify other required columns in B-Soft
-        required_bsoft_cols = ['Remetente - UF', 'Destinatário - UF', 'Total']
+        required_bsoft_cols = ['Data', 'Remetente - UF', 'Destinatário - UF', 'Total']
         missing_bsoft = [col for col in required_bsoft_cols if col not in df_bsoft.columns]
         if missing_bsoft:
             confirmation_pop_up(root, f"❌ Colunas faltando no B-Soft: {', '.join(missing_bsoft)}")
@@ -2757,6 +2782,9 @@ def processar_gnre_target(relatorio_target_path, root):
                 # Extract slip value
                 slip_value = row['GNRE Target']
                 
+                # Extract emission date
+                emission_date = row['Data']
+                
                 # Get supplier from state full name
                 uf_favorecida = str(row['UF Favorecida']).strip().upper()
                 supplier = state_full_name.get(uf_favorecida, '')
@@ -2803,7 +2831,8 @@ def processar_gnre_target(relatorio_target_path, root):
                     slip_value=slip_value,
                     supplier=supplier,
                     cost_center=cost_center,
-                    barcode_number=barcode_number
+                    barcode_number=barcode_number,
+                    emission_date=emission_date
                 )
                 
                 processados += 1
