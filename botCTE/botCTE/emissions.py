@@ -2639,7 +2639,21 @@ def comparar_gnre_target(relatorio_bsoft_path, relatorio_target_path, root):
                 uf_rem = row['Remetente - UF']
                 uf_dest = row['Destinatário - UF']
                 barcode = row['Linha Digitável']
+                
+                # Ensure date is in DD/MM/YYYY text format
                 data_cte = row['Data']
+                if hasattr(data_cte, 'strftime'):
+                    data_cte = data_cte.strftime('%d/%m/%Y')
+                elif isinstance(data_cte, str):
+                    # Try to parse and reformat if it's a string in different format
+                    for fmt in ('%Y-%m-%d', '%d-%m-%Y', '%d/%m/%Y'):
+                        try:
+                            data_cte = dt.datetime.strptime(data_cte, fmt).strftime('%d/%m/%Y')
+                            break
+                        except ValueError:
+                            continue
+                else:
+                    data_cte = str(data_cte)
                 
                 # Convert Brazilian format (comma decimal) to float
                 total_value = str(row['Total']).replace(',', '.')
