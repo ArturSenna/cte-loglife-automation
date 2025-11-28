@@ -2639,6 +2639,7 @@ def comparar_gnre_target(relatorio_bsoft_path, relatorio_target_path, root):
                 uf_rem = row['Remetente - UF']
                 uf_dest = row['Destinatário - UF']
                 barcode = row['Linha Digitável']
+                data_cte = row['Data']
                 
                 # Convert Brazilian format (comma decimal) to float
                 total_value = str(row['Total']).replace(',', '.')
@@ -2666,6 +2667,7 @@ def comparar_gnre_target(relatorio_bsoft_path, relatorio_target_path, root):
                 
                 results.append({
                     'CT-e': cte_num,
+                    'Data': data_cte,
                     'UF Origem': uf_rem,
                     'UF Destino': uf_dest,
                     'UF Favorecida': uf_favorecida,
