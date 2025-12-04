@@ -251,20 +251,16 @@ def show_update_dialog(parent_window, update_info):
     """
     dialog = Toplevel(parent_window)
     dialog.title("Atualização Disponível")
-    dialog.geometry("500x400")
-    dialog.resizable(False, False)
     dialog.transient(parent_window)
     dialog.grab_set()
     
-    # Center dialog
-    dialog.update_idletasks()
-    x = (dialog.winfo_screenwidth() // 2) - (dialog.winfo_width() // 2)
-    y = (dialog.winfo_screenheight() // 2) - (dialog.winfo_height() // 2)
-    dialog.geometry(f'+{x}+{y}')
+    # Use grid geometry manager for better control over layout
+    dialog.columnconfigure(0, weight=1)
+    dialog.rowconfigure(1, weight=1)  # Content row expands
     
-    # Header frame
+    # Header frame (row 0)
     header_frame = Frame(dialog, bg=PRIMARY_COLOR, height=80)
-    header_frame.pack(fill='x')
+    header_frame.grid(row=0, column=0, sticky='ew')
     header_frame.pack_propagate(False)
     
     Label(
@@ -275,13 +271,15 @@ def show_update_dialog(parent_window, update_info):
         fg='white'
     ).pack(pady=20)
     
-    # Content frame
+    # Content frame (row 1 - expandable)
     content_frame = Frame(dialog, bg='white', padx=20, pady=20)
-    content_frame.pack(fill='both', expand=True)
+    content_frame.grid(row=1, column=0, sticky='nsew')
+    content_frame.columnconfigure(0, weight=1)
+    content_frame.rowconfigure(2, weight=1)  # Notes frame row expands
     
     # Version info
     version_frame = Frame(content_frame, bg='white')
-    version_frame.pack(fill='x', pady=10)
+    version_frame.grid(row=0, column=0, sticky='ew', pady=10)
     
     Label(
         version_frame,
@@ -298,20 +296,22 @@ def show_update_dialog(parent_window, update_info):
         fg=PRIMARY_COLOR
     ).pack(anchor='w')
     
-    # Release notes
+    # Release notes label
     Label(
         content_frame,
         text="Novidades:",
         font=('Segoe UI', 10, 'bold'),
         bg='white'
-    ).pack(anchor='w', pady=(10, 5))
+    ).grid(row=1, column=0, sticky='w', pady=(10, 5))
     
     # Scrollable text for release notes
     notes_frame = Frame(content_frame, bg='white')
-    notes_frame.pack(fill='both', expand=True, pady=5)
+    notes_frame.grid(row=2, column=0, sticky='nsew', pady=5)
+    notes_frame.columnconfigure(0, weight=1)
+    notes_frame.rowconfigure(0, weight=1)
     
     scrollbar = Scrollbar(notes_frame)
-    scrollbar.pack(side=RIGHT, fill='y')
+    scrollbar.grid(row=0, column=1, sticky='ns')
     
     notes_text = Text(
         notes_frame,
@@ -322,32 +322,38 @@ def show_update_dialog(parent_window, update_info):
         relief='sunken',
         borderwidth=1
     )
-    notes_text.pack(side=LEFT, fill='both', expand=True)
+    notes_text.grid(row=0, column=0, sticky='nsew')
     scrollbar.config(command=notes_text.yview)
     
     notes_text.insert('1.0', update_info.get('release_notes', 'Sem notas de versão disponíveis.'))
     notes_text.config(state='disabled')
     
-    # Progress bar (hidden initially)
+    # Progress frame (row 3 - for progress bar and status, inside content)
+    progress_frame = Frame(content_frame, bg='white')
+    progress_frame.grid(row=3, column=0, sticky='ew', pady=(10, 0))
+    progress_frame.columnconfigure(0, weight=1)
+    
     progress_var = DoubleVar(value=0)
     progress_bar = ttk.Progressbar(
-        content_frame,
+        progress_frame,
         mode='determinate',
         variable=progress_var,
         maximum=100
     )
+    # Progress bar will be packed when needed
     
     status_label = Label(
-        content_frame,
+        progress_frame,
         text="",
         font=('Segoe UI', 9),
         bg='white',
         fg='gray'
     )
+    # Status label will be packed when needed
     
-    # Button frame
-    button_frame = Frame(dialog, bg='white', pady=10)
-    button_frame.pack(fill='x', side='bottom')
+    # Button frame (row 2 - fixed at bottom)
+    button_frame = Frame(dialog, bg='white', pady=15)
+    button_frame.grid(row=2, column=0, sticky='ew')
     
     def start_update():
         """Start the update download and installation."""
@@ -361,8 +367,8 @@ def show_update_dialog(parent_window, update_info):
         # Disable buttons and show progress
         download_btn.config(state='disabled')
         later_btn.config(state='disabled')
-        progress_bar.pack(fill='x', pady=(10, 5))
-        status_label.pack(fill='x')
+        progress_bar.grid(row=0, column=0, sticky='ew', pady=(0, 5))
+        status_label.grid(row=1, column=0, sticky='ew')
         status_label.config(text="Baixando atualização...")
         
         def progress_callback(progress):
@@ -442,6 +448,27 @@ def show_update_dialog(parent_window, update_info):
         cursor='hand2'
     )
     later_btn.pack(side=RIGHT, padx=5)
+    
+    # Set minimum size and center dialog after all widgets are created
+    dialog.update_idletasks()
+    
+    # Calculate required size based on content
+    min_width = 500
+    min_height = 420
+    
+    # Get the actual required size
+    req_width = max(dialog.winfo_reqwidth(), min_width)
+    req_height = max(dialog.winfo_reqheight(), min_height)
+    
+    # Set geometry with minimum size
+    dialog.minsize(min_width, min_height)
+    dialog.geometry(f"{req_width}x{req_height}")
+    
+    # Center dialog on screen
+    dialog.update_idletasks()
+    x = (dialog.winfo_screenwidth() // 2) - (req_width // 2)
+    y = (dialog.winfo_screenheight() // 2) - (req_height // 2)
+    dialog.geometry(f"{req_width}x{req_height}+{x}+{y}")
 
 
 def check_for_updates_on_startup(parent_window):
