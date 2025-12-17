@@ -5,6 +5,7 @@ import time
 import traceback
 from datetime import datetime
 import numpy as np
+import requests
 import bot
 from functions import *
 
@@ -84,170 +85,159 @@ aliquota_base = pd.read_excel(os.path.join(_SCRIPT_DIR, 'Alíquota.xlsx'), sheet
 
 
 def cte_list(start_date, final_date, folderpath, cte_folder, root):
-    def get_address_name(address_id):
-        add_lenght = len(address_id)
-        count = 0
+    """
+    Fetch services for CTE emission using the optimized single API endpoint.
+    All filtering is done server-side for better performance.
+    """
+    
+    # Mapping of full state names to abbreviations
+    state_name_to_abbrev = {
+        'ACRE': 'AC', 'ALAGOAS': 'AL', 'AMAPÁ': 'AP', 'AMAZONAS': 'AM',
+        'BAHIA': 'BA', 'CEARÁ': 'CE', 'DISTRITO FEDERAL': 'DF',
+        'ESPÍRITO SANTO': 'ES', 'GOIÁS': 'GO', 'MARANHÃO': 'MA',
+        'MATO GROSSO': 'MT', 'MATO GROSSO DO SUL': 'MS',
+        'MINAS GERAIS': 'MG', 'PARÁ': 'PA', 'PARAÍBA': 'PB',
+        'PARANÁ': 'PR', 'PERNAMBUCO': 'PE', 'PIAUÍ': 'PI',
+        'RIO DE JANEIRO': 'RJ', 'RIO GRANDE DO NORTE': 'RN',
+        'RIO GRANDE DO SUL': 'RS', 'RONDÔNIA': 'RO', 'RORAIMA': 'RR',
+        'SANTA CATARINA': 'SC', 'SÃO PAULO': 'SP', 'SERGIPE': 'SE',
+        'TOCANTINS': 'TO'
+    }
+    
+    def get_state_abbreviation(full_name):
+        """Convert full state name to abbreviation."""
+        if not full_name:
+            return ''
+        full_name_upper = full_name.upper().strip()
+        # Check if it's already an abbreviation
+        if len(full_name_upper) == 2:
+            return full_name_upper
+        return state_name_to_abbrev.get(full_name_upper, full_name_upper)
+    
+    def get_address_name_from_list(addresses):
+        """Format address names from pre-resolved address list."""
+        if not addresses:
+            return ''
+        add_length = len(addresses)
         add_total = ''
-        for i in range(add_lenght):
-            add_name = address.loc[address['id'] == address_id[i], 'trading_name'].values.item()
-            add_branch = address.loc[address['id'] == address_id[i], 'branch'].values.item()
-            count += 1
-            if count != add_lenght:
-                space = "\n"
-            else:
-                space = ''
-            if add_lenght == 1:
+        for i, addr in enumerate(addresses):
+            add_name = addr.get('trading_name', '')
+            add_branch = addr.get('branch', '')
+            count = i + 1
+            space = "\n" if count != add_length else ''
+            if add_length == 1:
                 listing = str(add_name)
             else:
                 listing = str(count) + '. ' + str(add_name)
             add_total += listing + ' - ' + add_branch + space
         return add_total
 
-    def get_address_meta(add):
-        add_lenght = len(add)
-        count = 0
+    def get_address_meta_from_list(addresses):
+        """Format full address details from pre-resolved address list."""
+        if not addresses:
+            return ''
+        add_length = len(addresses)
         add_total = ''
-        for i in range(add_lenght):
-            add_street = address.loc[address['id'] == add[i], 'street'].values.item()
-            add_num = address.loc[address['id'] == add[i], 'number'].values.item()
-            add_dist = address.loc[address['id'] == add[i], 'neighborhood'].values.item()
-            add_city = address.loc[address['id'] == add[i], 'cityIDAddress.name'].values.item()
-            add_state = address.loc[address['id'] == add[i], 'state'].values.item()
-            add_cep = address.loc[address['id'] == add[i], 'cep'].values.item()
-            count += 1
-            if count != add_lenght:
-                space = "\n"
-            else:
-                space = ''
-            if add_lenght == 1:
-                listing = ''
-            else:
-                listing = str(count) + '. '
+        for i, addr in enumerate(addresses):
+            add_street = addr.get('street', '')
+            add_num = addr.get('number', '')
+            add_dist = addr.get('neighborhood', '')
+            add_city = addr.get('city_name', '')
+            add_state = addr.get('city_state', '')
+            add_cep = addr.get('cep', '')
+            count = i + 1
+            space = "\n" if count != add_length else ''
+            listing = '' if add_length == 1 else str(count) + '. '
             add_total += listing + add_street.title() + ', ' + add_num + ' - ' + add_dist.title() + ', ' \
                          + add_city.title() + ' - ' + add_state + ', ' + add_cep + space
         return add_total
 
-    def get_address_cnpj_listed(add_list):
-        add_lenght = len(add_list)
-        count = 0
+    def get_address_cnpj_listed_from_list(addresses):
+        """Format CNPJs from pre-resolved address list."""
+        if not addresses:
+            return ''
+        add_length = len(addresses)
         add_total = ''
-        for add in add_list:
-            cnpj = address.loc[address['id'] == add, 'cnpj_cpf'].values.item()
-            count += 1
-            if count != add_lenght:
-                space = "\n"
-            else:
-                space = ''
-            if add_lenght == 1:
-                listing = ''
-            else:
-                listing = str(count) + '. '
+        for i, addr in enumerate(addresses):
+            cnpj = addr.get('cnpj_cpf', '')
+            count = i + 1
+            space = "\n" if count != add_length else ''
+            listing = '' if add_length == 1 else str(count) + '. '
             add_total += listing + cnpj + space
         return add_total
 
-    def get_address_cnpj(add_list):
-        _cnpj_list = []
-        for add in add_list:
-            cnpj = address.loc[address['id'] == add, 'cnpj_cpf'].values.item()
-            _cnpj_list.append(cnpj)
-        return _cnpj_list
+    def get_address_cnpj_from_list(addresses):
+        """Get list of CNPJs from pre-resolved address list."""
+        if not addresses:
+            return []
+        return [addr.get('cnpj_cpf', '') for addr in addresses]
 
-    def get_address_city(add):
-        add_lenght = len(add)
-        add_total = []
-        count = 0
-        cities = ''
-        for i in range(add_lenght):
-            add_city = address.loc[address['id'] == add[i], 'cityIDAddress.name'].values.item()
-            add_total.append(add_city)
-        add_total = np.unique(add_total)
-        for p in add_total:
-            if count == 0:
-                cities = p
-            elif count == len(add_total) - 1:
-                cities += ', ' + p
-            else:
-                cities += ', ' + p
-            count += 1
-        return cities
-
-    def get_address_city_listed(add_list):
-        _cities_list = []
-        for add in add_list:
-            add_city = address.loc[address['id'] == add, 'cityIDAddress.name'].values.item()
-            _cities_list.append(add_city)
-        cities_list = np.unique(_cities_list)
-        return cities_list
-
-    def get_collector(col):
-        col_name = collector.loc[collector['id'] == col, 'trading_name'].values.item()
-        return col_name
-
-    # def get_transp(id_t):
-    #     try:
-    #         if id_t is not None:
-    #             transp = bases.loc[bases['id'] == id_t, 'shippingIDBranch.company_name'].values.item()
-    #         else:
-    #             transp = ""
-    #     except ValueError:
-    #         transp = ""
-    #     return transp
+    def get_collector_name(collector_data):
+        """Get collector name from pre-resolved collector data."""
+        if not collector_data:
+            return ''
+        return collector_data.get('trading_name', '')
 
     now = dt.datetime.now()
     now_date = dt.datetime.strftime(start_date, '%d-%m-%Y')
     now = dt.datetime.strftime(now, "%H-%M")
 
-    di = dt.datetime.strftime(start_date, '%d/%m/%Y')
-    df = dt.datetime.strftime(final_date, '%d/%m/%Y')
+    # Format dates for API (ISO format)
+    start_date_iso = dt.datetime.strftime(start_date, '%Y-%m-%d')
+    end_date_iso = dt.datetime.strftime(final_date, '%Y-%m-%d')
 
-    di_dt = dt.datetime.strptime(di, '%d/%m/%Y')
-    df_dt = dt.datetime.strptime(df, '%d/%m/%Y')
+    print(f"Fetching CTE emission services from {start_date_iso} to {end_date_iso}...")
 
-    di_temp = di_dt - dt.timedelta(days=5)
-    df_temp = df_dt + dt.timedelta(days=5)
+    # SINGLE OPTIMIZED API CALL - All filtering done server-side
+    try:
+        # Make direct request to get raw JSON response
+        api_url = f'https://transportebiologico.com.br/api/public/service/cte-emission?initialDate={start_date_iso}&finalDate={end_date_iso}'
+        
+        # Combine both headers (xtoken for public routes and authorization for auth)
+        combined_headers = {**r.headers, **r.auth}
+        response = requests.get(api_url, headers=combined_headers)
+        response.raise_for_status()
+        
+        response_json = response.json()
+        
+        # Debug: print response structure
+        print(f"Response keys: {response_json.keys() if isinstance(response_json, dict) else 'Not a dict'}")
+        
+        # Extract services and total from response
+        services_data = response_json.get('services', [])
+        total = response_json.get('total', len(services_data))
+            
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching services for CTE emission: {e}")
+        traceback.print_exc()
+        return
+    except Exception as e:
+        print(f"Error processing response: {e}")
+        traceback.print_exc()
+        return
 
-    di = dt.datetime.strftime(di_temp, '%d/%m/%Y')
-    df = dt.datetime.strftime(df_temp, '%d/%m/%Y')
+    print(f"Found {total} services for CTE emission")
 
-    address = r.request_public('https://transportebiologico.com.br/api/public/address')
-    collector = r.request_public('https://transportebiologico.com.br/api/public/collector')
-    services_ongoing = r.request_public('https://transportebiologico.com.br/api/public/service')
-    services_finalized = r.request_public(
-        f'https://transportebiologico.com.br/api/public/service/finalized/?startFilter={di}&endFilter={df}',
-        'post'
-    )
+    if total == 0 or not services_data:
+        print("No services found for CTE emission")
+        confirmation_pop_up(root, "Nenhum serviço encontrado para emissão de CTE no período selecionado.")
+        return
 
-    sv = pd.concat([services_ongoing, services_finalized], ignore_index=True)
-    sv = sv.loc[sv['is_business'] == False]
-    sv.drop(sv[sv['step'] == 'toValidateCancelRequest'].index, inplace=True)
+    # Convert to DataFrame - don't flatten nested objects so we can access them as dicts
+    sv = pd.DataFrame(services_data)
+    
+    # Debug: print DataFrame columns
+    print(f"DataFrame columns: {sv.columns.tolist()}")
+    print(f"DataFrame shape: {sv.shape}")
 
-    df_dt += dt.timedelta(days=1)
-
-    sv['collectDateTime'] = pd.to_datetime(sv['serviceIDRequested.collect_date']) - dt.timedelta(hours=3)
-    sv['collectDateTime'] = sv['collectDateTime'].dt.tz_localize(None)
-
-    sv.drop(sv[sv['collectDateTime'] < di_dt].index, inplace=True)
-    sv.drop(sv[sv['collectDateTime'] > df_dt].index, inplace=True)
-    sv.to_excel('ServicesAPI.xlsx', index=True)
-
-    sv = pd.concat([sv[sv['cte_loglife'].isnull()],
-                    sv[sv['cte_loglife'] == 'nan'],
-                    sv[sv['cte_loglife'] == '-']], ignore_index=True)
-
-    sv.drop(sv[sv['customerIDService.emission_type'] == 'NF'].index, inplace=True)
-    sv.drop(sv[sv['customerIDService.trading_firstname'] == 'LOGLIFE'].index, inplace=True)
-    sv.drop(sv[sv['serviceIDRequested.budgetIDService.price'] == 0].index, inplace=True)
-
-    sv['origCityList'] = sv['serviceIDRequested.source_address_id'].map(get_address_city_listed)
-    sv['destCityList'] = sv['serviceIDRequested.destination_address_id'].map(get_address_city_listed)
-    sv['origCity'] = sv['serviceIDRequested.source_address_id'].map(get_address_city)
-    sv['destCity'] = sv['serviceIDRequested.destination_address_id'].map(get_address_city)
-
-    sv.drop(sv[
-                (sv['origCityList'].str.len() == 1) &
-                (sv['destCityList'].str.len() == 1) &
-                (sv['origCity'] == sv['destCity'])
-                ].index, inplace=True)
+    # Data is already filtered server-side for:
+    # - is_business = False
+    # - step != 'toValidateCancelRequest'
+    # - cte_loglife is null/nan/-
+    # - emission_type != 'NF'
+    # - trading_firstname != 'LOGLIFE'
+    # - budget.price > 0
+    # - Same city services excluded
 
     sv.sort_values(
         by="protocol", axis=0, ascending=True, inplace=True, kind='quicksort', na_position='last'
@@ -255,10 +245,32 @@ def cte_list(start_date, final_date, folderpath, cte_folder, root):
 
     sv.to_excel('ServicesAPI.xlsx', index=False)
 
+    # Helper functions to extract nested data
+    def get_customer_field(row, field):
+        """Extract field from customer dict."""
+        customer = row.get('customer')
+        if customer and isinstance(customer, dict):
+            return customer.get(field, '')
+        return ''
+    
+    def get_budget_field(row, field):
+        """Extract field from budget dict."""
+        budget = row.get('budget')
+        if budget and isinstance(budget, dict):
+            return budget.get(field, 0)
+        return 0
+    
+    def get_requested_service_field(row, field):
+        """Extract field from requested_service dict."""
+        rs = row.get('requested_service')
+        if rs and isinstance(rs, dict):
+            return rs.get(field, '')
+        return ''
+
     report = pd.DataFrame(columns=[])
 
     report['PROTOCOLO'] = sv['protocol']
-    report['CLIENTE'] = sv['customerIDService.trading_firstname']
+    report['CLIENTE'] = sv.apply(lambda row: get_customer_field(row, 'trading_firstname'), axis=1)
     report['ETAPA'] = np.select(
         condlist=[
             sv['step'] == 'availableService',
@@ -279,19 +291,29 @@ def cte_list(start_date, final_date, folderpath, cte_folder, root):
             'EM ROTA DE EMBARQUE', 'EMBARCANDO SERVIÇO', 'FINALIZADO'],
         default=''
     )
+    
+    # Parse collect date from ISO format - extract from nested requested_service
+    sv['collectDateTime'] = sv.apply(
+        lambda row: get_requested_service_field(row, 'collect_date'), axis=1
+    )
+    sv['collectDateTime'] = pd.to_datetime(sv['collectDateTime']) - dt.timedelta(hours=3)
+    sv['collectDateTime'] = sv['collectDateTime'].dt.tz_localize(None)
+    
     report['DATA COLETA'] = sv['collectDateTime'].dt.strftime(date_format='%d/%m/%Y')
-    report['PREÇO TRANSPORTE'] = sv['serviceIDRequested.budgetIDService.price']
-    report['PREÇO KG EXTRA'] = sv['serviceIDRequested.budgetIDService.price_kg_extra']
-    report['NOME REMETENTE'] = sv['serviceIDRequested.source_address_id'].map(get_address_name)
-    report['CIDADE ORIGEM'] = sv['origCity']
-    report['ENDEREÇO REMETENTE'] = sv['serviceIDRequested.source_address_id'].map(get_address_meta)
-    report['CNPJ/CPF REMETENTE'] = sv['serviceIDRequested.source_address_id'].map(get_address_cnpj_listed)
-    report['COLETADOR ORIGEM'] = sv['serviceIDRequested.source_collector_id'].map(get_collector)
-    report['NOME DESTINATÁRIO'] = sv['serviceIDRequested.destination_address_id'].map(get_address_name)
-    report['CIDADE DESTINO'] = sv['destCity']
-    report['ENDEREÇO DESTINATÁRIO'] = sv['serviceIDRequested.destination_address_id'].map(get_address_meta)
-    report['CNPJ/CPF DESTINATÁRIO'] = sv['serviceIDRequested.destination_address_id'].map(get_address_cnpj_listed)
-    report['COLETADOR DESTINO'] = sv['serviceIDRequested.destination_collector_id'].map(get_collector)
+    report['PREÇO TRANSPORTE'] = sv.apply(lambda row: get_budget_field(row, 'price'), axis=1)
+    report['PREÇO KG EXTRA'] = sv.apply(lambda row: get_budget_field(row, 'price_kg_extra'), axis=1)
+    
+    # Use pre-resolved address data (already included in API response)
+    report['NOME REMETENTE'] = sv['source_addresses'].apply(get_address_name_from_list)
+    report['CIDADE ORIGEM'] = sv['source_city']
+    report['ENDEREÇO REMETENTE'] = sv['source_addresses'].apply(get_address_meta_from_list)
+    report['CNPJ/CPF REMETENTE'] = sv['source_addresses'].apply(get_address_cnpj_listed_from_list)
+    report['COLETADOR ORIGEM'] = sv['source_collector'].apply(get_collector_name)
+    report['NOME DESTINATÁRIO'] = sv['destination_addresses'].apply(get_address_name_from_list)
+    report['CIDADE DESTINO'] = sv['destination_city']
+    report['ENDEREÇO DESTINATÁRIO'] = sv['destination_addresses'].apply(get_address_meta_from_list)
+    report['CNPJ/CPF DESTINATÁRIO'] = sv['destination_addresses'].apply(get_address_cnpj_listed_from_list)
+    report['COLETADOR DESTINO'] = sv['destination_collector'].apply(get_collector_name)
 
     cte_path = folderpath
     cte_path = cte_path.replace('/', '\\')
@@ -315,14 +337,36 @@ def cte_list(start_date, final_date, folderpath, cte_folder, root):
 
         report_date = dt.datetime.strftime(dt.datetime.now(), '%d/%m/%Y')
 
-        tomador_cnpj = sv.loc[sv['protocol'] == protocol, 'customerIDService.cnpj_cpf'].values.item()
-        source_add = sv.loc[sv['protocol'] == protocol, 'serviceIDRequested.source_address_id'].values.item()
-        destination_add = sv.loc[sv['protocol'] == protocol, 'serviceIDRequested.destination_address_id'].values.item()
-        valor = str(sv.loc[sv['protocol'] == protocol, 'serviceIDRequested.price'].values.item())
-        uf1 = address.loc[address['id'] == source_add[0], 'state'].values.item()
-        uf2 = address.loc[address['id'] == destination_add[0], 'state'].values.item()
-        cnpj_remetente = get_address_cnpj(source_add)
-        cnpj_destinatario = get_address_cnpj(destination_add)
+        # Get the row for this protocol
+        row = sv.loc[sv['protocol'] == protocol].iloc[0]
+        
+        # Get data from new API structure (pre-resolved) - extract from nested dicts
+        customer = row.get('customer') or {}
+        tomador_cnpj = customer.get('cnpj_cpf', '')
+        
+        # Get price from budget or requested_service
+        budget = row.get('budget') or {}
+        requested_service = row.get('requested_service') or {}
+        valor = str(budget.get('price') or requested_service.get('price') or 0)
+        
+        # Get source and destination addresses (pre-resolved in API)
+        source_addresses = row.get('source_addresses') or []
+        destination_addresses = row.get('destination_addresses') or []
+        
+        # Get states from pre-resolved address data (full state name from API)
+        # The API returns full state names like "MARANHÃO", "SÃO PAULO"
+        uf1_full = source_addresses[0].get('city_state', '') if source_addresses else ''
+        uf2_full = destination_addresses[0].get('city_state', '') if destination_addresses else ''
+        
+        # Convert full state names to abbreviations
+        uf1 = get_state_abbreviation(uf1_full)
+        uf2 = get_state_abbreviation(uf2_full)
+        
+        # Get CNPJs from pre-resolved address data
+        cnpj_remetente = get_address_cnpj_from_list(source_addresses)
+        cnpj_destinatario = get_address_cnpj_from_list(destination_addresses)
+        
+        # uf_base lookup expects abbreviations in 'Estado' column
         uf_rem = uf_base.loc[uf_base['Estado'] == uf1, 'UF'].values.item()
         uf_dest = uf_base.loc[uf_base['Estado'] == uf2, 'UF'].values.item()
         icms_obs = uf_base.loc[uf_base['Estado'] == uf_rem, 'Info'].values.item()
@@ -915,204 +959,226 @@ def cte_complimentary(start_date, final_date, cte_comp_path, cte_folder, root, u
 
 
 def cte_unique(cal_date, cte_path, cte_folder_path, cte_type, cte_s, volumes, root):
-    def get_address_cnpj(add_list):
-        _cnpj_list = []
-        for add in add_list:
-            cnpj = address.loc[address['id'] == add, 'cnpj_cpf'].values.item()
-            _cnpj_list.append(cnpj)
-        return _cnpj_list
-
-    def get_collector_cnpj(col):
-        _cnpj_list = []
-        cnpj = collector.loc[collector['id'] == col, 'cnpj'].values.item()
-        _cnpj_list.append(cnpj)
-        return _cnpj_list
-
-    def get_address_name(add):
-        add_lenght = len(add)
-        count = 0
+    """
+    Emit CTE for specific protocol(s) using the optimized single-protocol API endpoint.
+    Uses GET /api/public/service/cte-emission/:protocol for fetching service data.
+    """
+    
+    # Mapping of full state names to abbreviations
+    state_name_to_abbrev = {
+        'ACRE': 'AC', 'ALAGOAS': 'AL', 'AMAPÁ': 'AP', 'AMAZONAS': 'AM',
+        'BAHIA': 'BA', 'CEARÁ': 'CE', 'DISTRITO FEDERAL': 'DF',
+        'ESPÍRITO SANTO': 'ES', 'GOIÁS': 'GO', 'MARANHÃO': 'MA',
+        'MATO GROSSO': 'MT', 'MATO GROSSO DO SUL': 'MS',
+        'MINAS GERAIS': 'MG', 'PARÁ': 'PA', 'PARAÍBA': 'PB',
+        'PARANÁ': 'PR', 'PERNAMBUCO': 'PE', 'PIAUÍ': 'PI',
+        'RIO DE JANEIRO': 'RJ', 'RIO GRANDE DO NORTE': 'RN',
+        'RIO GRANDE DO SUL': 'RS', 'RONDÔNIA': 'RO', 'RORAIMA': 'RR',
+        'SANTA CATARINA': 'SC', 'SÃO PAULO': 'SP', 'SERGIPE': 'SE',
+        'TOCANTINS': 'TO'
+    }
+    
+    def get_state_abbreviation(full_name):
+        """Convert full state name to abbreviation, or return as-is if already abbreviated."""
+        if full_name is None:
+            return None
+        upper_name = full_name.upper().strip()
+        if upper_name in state_name_to_abbrev:
+            return state_name_to_abbrev[upper_name]
+        return full_name  # Already an abbreviation or unknown
+    
+    def get_address_name_from_list(addresses):
+        """Extract formatted address names from pre-resolved address list."""
+        if not addresses or not isinstance(addresses, list):
+            return ''
+        add_length = len(addresses)
         add_total = ''
-        for i in range(add_lenght):
-            add_name = address.loc[address['id'] == add[i], 'trading_name'].values.item()
-            add_branch = address.loc[address['id'] == add[i], 'branch'].values.item()
-            count += 1
-            if count != add_lenght:
-                space = "\n"
-            else:
-                space = ''
-            if add_lenght == 1:
+        for i, addr in enumerate(addresses):
+            add_name = addr.get('trading_name', '')
+            add_branch = addr.get('branch', '')
+            count = i + 1
+            space = "\n" if count != add_length else ''
+            if add_length == 1:
                 listing = str(add_name)
             else:
                 listing = str(count) + '. ' + str(add_name)
             add_total += listing + ' - ' + add_branch + space
         return add_total
-
-    def get_address_meta(add):
-        add_lenght = len(add)
-        count = 0
+    
+    def get_address_meta_from_list(addresses):
+        """Extract formatted address metadata from pre-resolved address list."""
+        if not addresses or not isinstance(addresses, list):
+            return ''
+        add_length = len(addresses)
         add_total = ''
-        for i in range(add_lenght):
-            add_street = address.loc[address['id'] == add[i], 'street'].values.item()
-            add_num = address.loc[address['id'] == add[i], 'number'].values.item()
-            add_dist = address.loc[address['id'] == add[i], 'neighborhood'].values.item()
-            add_city = address.loc[address['id'] == add[i], 'cityIDAddress.name'].values.item()
-            add_state = address.loc[address['id'] == add[i], 'state'].values.item()
-            add_cep = address.loc[address['id'] == add[i], 'cep'].values.item()
-            count += 1
-            if count != add_lenght:
-                space = "\n"
-            else:
-                space = ''
-            if add_lenght == 1:
-                listing = ''
-            else:
-                listing = str(count) + '. '
+        for i, addr in enumerate(addresses):
+            add_street = addr.get('street', '')
+            add_num = addr.get('number', '')
+            add_dist = addr.get('neighborhood', '')
+            add_city = addr.get('city_name', '')
+            add_state = get_state_abbreviation(addr.get('city_state', addr.get('state', '')))
+            add_cep = addr.get('cep', '')
+            count = i + 1
+            space = "\n" if count != add_length else ''
+            listing = '' if add_length == 1 else str(count) + '. '
             add_total += listing + add_street.title() + ', ' + add_num + ' - ' + add_dist.title() + ', ' \
                          + add_city.title() + ' - ' + add_state + ', ' + add_cep + space
         return add_total
-
-    def get_address_cnpj_listed(add_list):
-        add_lenght = len(add_list)
-        count = 0
+    
+    def get_address_cnpj_listed_from_list(addresses):
+        """Extract formatted CNPJ list from pre-resolved address list."""
+        if not addresses or not isinstance(addresses, list):
+            return ''
+        add_length = len(addresses)
         add_total = ''
-        for add in add_list:
-            cnpj = address.loc[address['id'] == add, 'cnpj_cpf'].values.item()
-            count += 1
-            if count != add_lenght:
-                space = "\n"
-            else:
-                space = ''
-            if add_lenght == 1:
-                listing = ''
-            else:
-                listing = str(count) + '. '
+        for i, addr in enumerate(addresses):
+            cnpj = addr.get('cnpj_cpf', '')
+            count = i + 1
+            space = "\n" if count != add_length else ''
+            listing = '' if add_length == 1 else str(count) + '. '
             add_total += listing + cnpj + space
         return add_total
-
-    def get_collector(col):
-        col_name = collector.loc[collector['id'] == col, 'trading_name'].values.item()
-        return col_name
-
-    def get_address_city(add):
-        add_lenght = len(add)
-        add_total = []
-        count = 0
-        cities = ''
-        for i in range(add_lenght):
-            add_city = address.loc[address['id'] == add[count], 'cityIDAddress.name'].values.item()
-            add_total.append(add_city)
-        add_total = np.unique(add_total)
-        for p in add_total:
-            if count == 0:
-                cities = p
-            elif count == len(add_total) - 1:
-                cities += ', ' + p
-            else:
-                cities += ', ' + p
-            count += 1
-        return cities
-
-    di = cal_date
-    df = di
+    
+    def get_address_cnpj_from_list(addresses):
+        """Extract list of CNPJs from pre-resolved address list."""
+        if not addresses or not isinstance(addresses, list):
+            return []
+        return [addr.get('cnpj_cpf', '') for addr in addresses]
+    
+    def get_collector_name(collector_data):
+        """Extract collector name from pre-resolved collector data."""
+        if collector_data and isinstance(collector_data, dict):
+            return collector_data.get('trading_name', '')
+        return ''
+    
+    def get_collector_cnpj(collector_data):
+        """Extract collector CNPJ from pre-resolved collector data."""
+        if collector_data and isinstance(collector_data, dict):
+            return [collector_data.get('cnpj', '')]
+        return []
+    
+    def get_customer_field(service, field):
+        """Extract field from customer nested object."""
+        customer = service.get('customer', {})
+        if customer and isinstance(customer, dict):
+            return customer.get(field)
+        return None
+    
+    def get_budget_field(service, field):
+        """Extract field from budget nested object."""
+        budget = service.get('budget', {})
+        if budget and isinstance(budget, dict):
+            return budget.get(field)
+        return None
+    
+    def get_requested_service_field(service, field):
+        """Extract field from requested_service nested object."""
+        requested_service = service.get('requested_service', {})
+        if requested_service and isinstance(requested_service, dict):
+            return requested_service.get(field)
+        return None
+    
+    def get_step_label(step):
+        """Convert step code to human-readable label."""
+        step_map = {
+            'availableService': 'AGUARDANDO DISPONIBILIZAÇÃO',
+            'toAllocateService': 'AGUARDANDO ALOCAÇÃO',
+            'toDeliveryService': 'EM ROTA DE ENTREGA',
+            'deliveringService': 'ENTREGANDO',
+            'toLandingService': 'DISPONÍVEL PARA RETIRADA',
+            'landingService': 'DESEMBARCANDO',
+            'toBoardValidate': 'VALIDAR EMBARQUE',
+            'toCollectService': 'AGENDADO',
+            'collectingService': 'COLETANDO',
+            'toBoardService': 'EM ROTA DE EMBARQUE',
+            'boardingService': 'EMBARCANDO SERVIÇO',
+            'finishedService': 'FINALIZADO'
+        }
+        return step_map.get(step, '')
 
     now = dt.datetime.now()
-    now_date = dt.datetime.strftime(di, '%d-%m-%Y')
-    now = dt.datetime.strftime(now, "%H-%M")
-
-    di = dt.datetime.strftime(di, '%d/%m/%Y')
-    df = dt.datetime.strftime(df, '%d/%m/%Y')
-
-    di_dt = dt.datetime.strptime(di, '%d/%m/%Y')
-    df_dt = dt.datetime.strptime(df, '%d/%m/%Y')
-
-    di_temp = di_dt - dt.timedelta(days=5)
-    df_temp = df_dt + dt.timedelta(days=5)
-
-    di = dt.datetime.strftime(di_temp, '%d/%m/%Y')
-    df = dt.datetime.strftime(df_temp, '%d/%m/%Y')
-
-    # Requesting data from API
-
-    address = r.request_public('https://transportebiologico.com.br/api/public/address')
-    collector = r.request_public('https://transportebiologico.com.br/api/public/collector')
-    services_ongoing = r.request_public('https://transportebiologico.com.br/api/public/service')
-    services_finalized = r.request_public(
-        f'https://transportebiologico.com.br/api/public/service/finalized/?startFilter={di}&endFilter={df}',
-        'post'
-    )
-
-    sv = pd.concat([services_ongoing, services_finalized], ignore_index=True)
-
-    sv = sv.loc[sv['is_business'] == False]
-    sv = sv.loc[sv['step'] != 'toValidateCancelRequest']
-
-    df_dt += dt.timedelta(days=1)
-
-    sv['collectDateTime'] = pd.to_datetime(sv['serviceIDRequested.collect_date']) - dt.timedelta(hours=3)
-    sv['collectDateTime'] = sv['collectDateTime'].dt.tz_localize(None)
-
-    sv['origCity'] = sv['serviceIDRequested.source_address_id'].map(get_address_city)
-    sv['destCity'] = sv['serviceIDRequested.destination_address_id'].map(get_address_city)
-
-    sv.drop(sv[sv['collectDateTime'] < di_dt].index, inplace=True)
-    sv.drop(sv[sv['collectDateTime'] > df_dt].index, inplace=True)
-
-    sv.to_excel("debug.xlsx")
-
-    report = pd.DataFrame(columns=[])
-
-    report['PROTOCOLO'] = sv['protocol']
-    report['CLIENTE'] = sv['customerIDService.trading_firstname']
-    report['ETAPA'] = np.select(
-        condlist=[
-            sv['step'] == 'availableService',
-            sv['step'] == 'toAllocateService',
-            sv['step'] == 'toDeliveryService',
-            sv['step'] == 'deliveringService',
-            sv['step'] == 'toLandingService',
-            sv['step'] == 'landingService',
-            sv['step'] == 'toBoardValidate',
-            sv['step'] == 'toCollectService',
-            sv['step'] == 'collectingService',
-            sv['step'] == 'toBoardService',
-            sv['step'] == 'boardingService',
-            sv['step'] == 'finishedService'],
-        choicelist=[
-            'AGUARDANDO DISPONIBILIZAÇÃO', 'AGUARDANDO ALOCAÇÃO', 'EM ROTA DE ENTREGA', 'ENTREGANDO',
-            'DISPONÍVEL PARA RETIRADA', 'DESEMBARCANDO', 'VALIDAR EMBARQUE', 'AGENDADO', 'COLETANDO',
-            'EM ROTA DE EMBARQUE', 'EMBARCANDO SERVIÇO', 'FINALIZADO'],
-        default=''
-    )
-    report['DATA COLETA'] = sv['collectDateTime'].dt.strftime(date_format='%d/%m/%Y')
-    report['PREÇO TRANSPORTE'] = sv['serviceIDRequested.budgetIDService.price']
-    report['PREÇO KG EXTRA'] = sv['serviceIDRequested.budgetIDService.price_kg_extra']
-    report['NOME REMETENTE'] = sv['serviceIDRequested.source_address_id'].map(get_address_name)
-    report['CIDADE ORIGEM'] = sv['origCity']
-    report['ENDEREÇO REMETENTE'] = sv['serviceIDRequested.source_address_id'].map(get_address_meta)
-    report['CNPJ/CPF REMETENTE'] = sv['serviceIDRequested.source_address_id'].map(get_address_cnpj_listed)
-    report['COLETADOR ORIGEM'] = sv['serviceIDRequested.source_collector_id'].map(get_collector)
-    report['NOME DESTINATÁRIO'] = sv['serviceIDRequested.destination_address_id'].map(get_address_name)
-    report['CIDADE DESTINO'] = sv['destCity']
-    report['ENDEREÇO DESTINATÁRIO'] = sv['serviceIDRequested.destination_address_id'].map(get_address_meta)
-    report['CNPJ/CPF DESTINATÁRIO'] = sv['serviceIDRequested.destination_address_id'].map(get_address_cnpj_listed)
-    report['COLETADOR DESTINO'] = sv['serviceIDRequested.destination_collector_id'].map(get_collector)
+    now_date = dt.datetime.strftime(cal_date, '%d-%m-%Y')
+    now_time = dt.datetime.strftime(now, "%H-%M")
 
     cte_path = cte_path.replace('/', '\\')
 
     if cte_type == 0:
-        excel_file = f'{cte_path}\\Lista CTE-{now_date}-{now}.xlsx'
+        excel_file = f'{cte_path}\\Lista CTE-{now_date}-{now_time}.xlsx'
     else:
-        excel_file = f'{cte_path}\\CTe Simbólico-{now_date}-{now}.xlsx'
+        excel_file = f'{cte_path}\\CTe Simbólico-{now_date}-{now_time}.xlsx'
 
-    csv_file = f'{cte_path}\\Upload-{now_date}-{now}.csv'
-    csv_associate = f'{cte_path}\\Associar-{now_date}-{now}.csv'
+    csv_file = f'{cte_path}\\Upload-{now_date}-{now_time}.csv'
+    csv_associate = f'{cte_path}\\Associar-{now_date}-{now_time}.csv'
 
     cte_folder_path = cte_folder_path.replace('/', '\\')
 
     protocol_entry = cte_s
     protocol_list = protocol_entry.split(";")
 
-    report = report[report['PROTOCOLO'].isin([int(x) for x in protocol_list])]
+    print(f"Processing {len(protocol_list)} protocol(s): {protocol_list}")
+
+    # Fetch all services first to build report
+    services_data = []
+    for protocol in protocol_list:
+        protocol = protocol.strip()
+        print(f"Fetching service data for protocol {protocol}...")
+        
+        try:
+            response = requests.get(
+                f'https://transportebiologico.com.br/api/public/service/cte-emission/{protocol}',
+                headers={**r.headers, **r.auth}
+            )
+            response.raise_for_status()
+            data = response.json()
+            service = data.get('service')
+            
+            if service:
+                services_data.append(service)
+            else:
+                print(f"Service with protocol {protocol} not found")
+                confirmation_pop_up(root, f"Serviço com protocolo {protocol} não encontrado!")
+                
+        except requests.exceptions.RequestException as e:
+            print(f"Error fetching service {protocol}: {e}")
+            confirmation_pop_up(root, f"Erro ao buscar serviço {protocol}: {e}")
+            return
+    
+    if not services_data:
+        print("No services found for the given protocol(s)")
+        confirmation_pop_up(root, "Nenhum serviço encontrado para os protocolos informados.")
+        return
+    
+    # Build report DataFrame
+    report = pd.DataFrame(columns=[])
+    
+    for service in services_data:
+        collect_date_raw = get_requested_service_field(service, 'collect_date')
+        if collect_date_raw:
+            collect_dt = pd.to_datetime(collect_date_raw) - dt.timedelta(hours=3)
+            collect_date_str = collect_dt.strftime('%d/%m/%Y')
+        else:
+            collect_date_str = ''
+        
+        row = {
+            'PROTOCOLO': service.get('protocol'),
+            'CLIENTE': get_customer_field(service, 'trading_firstname'),
+            'ETAPA': get_step_label(service.get('step', '')),
+            'DATA COLETA': collect_date_str,
+            'PREÇO TRANSPORTE': get_budget_field(service, 'price'),
+            'PREÇO KG EXTRA': get_budget_field(service, 'price_kg_extra'),
+            'NOME REMETENTE': get_address_name_from_list(service.get('source_addresses')),
+            'CIDADE ORIGEM': service.get('source_city', ''),
+            'ENDEREÇO REMETENTE': get_address_meta_from_list(service.get('source_addresses')),
+            'CNPJ/CPF REMETENTE': get_address_cnpj_listed_from_list(service.get('source_addresses')),
+            'COLETADOR ORIGEM': get_collector_name(service.get('source_collector')),
+            'NOME DESTINATÁRIO': get_address_name_from_list(service.get('destination_addresses')),
+            'CIDADE DESTINO': service.get('destination_city', ''),
+            'ENDEREÇO DESTINATÁRIO': get_address_meta_from_list(service.get('destination_addresses')),
+            'CNPJ/CPF DESTINATÁRIO': get_address_cnpj_listed_from_list(service.get('destination_addresses')),
+            'COLETADOR DESTINO': get_collector_name(service.get('destination_collector'))
+        }
+        report = pd.concat([report, pd.DataFrame([row])], ignore_index=True)
+    
     report.to_excel(excel_file, index=False)
 
     bot_cte = bot.Bot()
@@ -1121,24 +1187,52 @@ def cte_unique(cal_date, cte_path, cte_folder_path, cte_type, cte_s, volumes, ro
 
     print(protocol_list)
 
-    for protocol in protocol_list:
+    for service in services_data:
 
         report_date = dt.datetime.strftime(dt.datetime.now(), '%d/%m/%Y')
 
-        protocol = int(protocol)
-        client_type = sv.loc[sv['protocol'] == protocol, 'customerIDService.emission_type'].values.item()
-        tomador_cnpj = sv.loc[sv['protocol'] == protocol, 'customerIDService.cnpj_cpf'].values.item()
-        source_add = sv.loc[sv['protocol'] == protocol, 'serviceIDRequested.source_address_id'].values.item()
-        destination_add = sv.loc[sv['protocol'] == protocol, 'serviceIDRequested.destination_address_id'].values.item()
-        uf1 = address.loc[address['id'] == source_add[0], 'state'].values.item()
-        uf2 = address.loc[address['id'] == destination_add[0], 'state'].values.item()
-        uf_rem = uf_base.loc[uf_base['Estado'] == uf1, 'UF'].values.item()
-        uf_dest = uf_base.loc[uf_base['Estado'] == uf2, 'UF'].values.item()
-        icms_obs = uf_base.loc[uf_base['Estado'] == uf_rem, 'Info'].values.item()
-        aliq = aliquota_base.loc[aliquota_base['UF'] == uf_rem, uf_dest].values.item()
+        protocol = service.get('protocol')
+        client_type = get_customer_field(service, 'emission_type')
+        tomador_cnpj = get_customer_field(service, 'cnpj_cpf')
+        
+        # Get state from first source/destination address (pre-resolved data)
+        source_addresses = service.get('source_addresses', [])
+        destination_addresses = service.get('destination_addresses', [])
+        
+        if source_addresses:
+            uf1 = get_state_abbreviation(source_addresses[0].get('city_state', source_addresses[0].get('state', '')))
+        else:
+            uf1 = ''
+        
+        if destination_addresses:
+            uf2 = get_state_abbreviation(destination_addresses[0].get('city_state', destination_addresses[0].get('state', '')))
+        else:
+            uf2 = ''
+        
+        try:
+            uf_rem = uf_base.loc[uf_base['Estado'] == uf1, 'UF'].values.item()
+        except ValueError:
+            uf_rem = uf1
+        
+        try:
+            uf_dest = uf_base.loc[uf_base['Estado'] == uf2, 'UF'].values.item()
+        except ValueError:
+            uf_dest = uf2
+        
+        try:
+            icms_obs = uf_base.loc[uf_base['Estado'] == uf_rem, 'Info'].values.item()
+        except ValueError:
+            icms_obs = ''
+        
+        try:
+            aliq = aliquota_base.loc[aliquota_base['UF'] == uf_rem, uf_dest].values.item()
+        except ValueError:
+            aliq = "0"
+        
         obs_text = f'Protocolo {protocol} - {icms_obs}'
+        
         if cte_type == 0:
-            valor = str(sv.loc[sv['protocol'] == protocol, 'serviceIDRequested.price'].values.item())
+            valor = str(get_requested_service_field(service, 'price') or get_budget_field(service, 'price') or 0)
         else:
             valor = "5"
 
@@ -1149,15 +1243,15 @@ def cte_unique(cal_date, cte_path, cte_folder_path, cte_type, cte_s, volumes, ro
             obs_text = obs_text.replace('#', aliq_text)
             aliq = "0"
 
-        cliente = sv.loc[sv['protocol'] == protocol, 'customerIDService.trading_firstname'].values.item()
+        cliente = get_customer_field(service, 'trading_firstname')
 
         if cte_type == 0:
             if client_type == "NF":
                 confirmation_pop_up(root, f"Protocolo {protocol} não pode ser emitido como CTe normal!")
                 break
-            valor = str(sv.loc[sv['protocol'] == protocol, 'serviceIDRequested.budgetIDService.price'].values.item())
-            cnpj_remetente = get_address_cnpj(source_add)
-            cnpj_destinatario = get_address_cnpj(destination_add)
+            valor = str(get_budget_field(service, 'price') or 0)
+            cnpj_remetente = get_address_cnpj_from_list(source_addresses)
+            cnpj_destinatario = get_address_cnpj_from_list(destination_addresses)
             tipo_cte = None
             vols = volumes
             if tomador_cnpj in cnpj_remetente:
@@ -1169,12 +1263,9 @@ def cte_unique(cal_date, cte_path, cte_folder_path, cte_type, cte_s, volumes, ro
             else:
                 tomador = "Outro"
         else:
-            source_collector = sv.loc[
-                sv['protocol'] == protocol, 'serviceIDRequested.source_collector_id'
-            ].values.item()
-            dest_collector = sv.loc[
-                sv['protocol'] == protocol, 'serviceIDRequested.destination_collector_id'
-            ].values.item()
+            # Symbolic CTE - use collector data (pre-resolved)
+            source_collector = service.get('source_collector')
+            dest_collector = service.get('destination_collector')
             valor = "5,00"
             cnpj_remetente = get_collector_cnpj(source_collector)
             if cliente == 'METHODOS LABORATORIO':
@@ -1183,9 +1274,7 @@ def cte_unique(cal_date, cte_path, cte_folder_path, cte_type, cte_s, volumes, ro
                 cnpj_destinatario = get_collector_cnpj(dest_collector)
             tipo_cte = 1
             vols = volumes
-            if cnpj_remetente[0] in [
-                "17.062.517/0001-08", "17.062.517/0002-99", "50.699.404/0001-93"
-            ] or cnpj_remetente in [
+            if cnpj_remetente and cnpj_remetente[0] in [
                 "17.062.517/0001-08", "17.062.517/0002-99", "50.699.404/0001-93"
             ]:
                 tomador = "Destinatário"
