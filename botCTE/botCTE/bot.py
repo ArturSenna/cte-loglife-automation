@@ -344,9 +344,12 @@ class Bot(DesktopBot):
             else:
                 self.not_found("confirmValue")
 
-        if not self.find( "confirmEmission", matching=0.97, waiting_time=60000):
-            self.not_found("confirmEmission")
-        self.double_click_relative(0, 26)
+        if not self.find( "finalizeEmission", matching=0.97, waiting_time=60000):
+            self.not_found("finalizeEmission")
+        x, y, w, h = self.get_last_element()
+        xPos = w / 2
+        yPos = 1.5*h
+        self.double_click_relative(xPos, yPos)
         self.control_c()
         self.tab()
         self.tab()
@@ -489,18 +492,18 @@ class Bot(DesktopBot):
             if change_due_date:
                 if self.find("icms_emission_date", matching=0.97, waiting_time=10000):
                     x, y, w, h = self.get_last_element()
-                    self.click_at(x + w // 2, y + 1.5*h)
-                    self.wait(300)
-                    self.click_at(x + w // 2, y + 1.5*h)
+                    xPos = w / 2
+                    yPos = 1.5*h
+                    self.double_click_relative(xPos, yPos)
                     self.type_keys(str(emission_date))
                 else:
                     raise Exception("Elemento 'icms_emission_date' não encontrado")
                 
                 if self.find("icms_payment_date", matching=0.97, waiting_time=10000):
                     x, y, w, h = self.get_last_element()
-                    self.click_at(x + w // 2, y + 1.5*h)
-                    self.wait(300)
-                    self.click_at(x + w // 2, y + 1.5*h)
+                    xPos = w / 2
+                    yPos = 1.5*h
+                    self.double_click_relative(xPos, yPos)
                     self.type_keys(str(emission_date))
                 else:
                     raise Exception("Elemento 'icms_payment_date' não encontrado")
