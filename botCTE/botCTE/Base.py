@@ -686,7 +686,17 @@ ttk.Button(tab1,
                                                  folderpath.get(),
                                                  cte_folder.get(),
                                                  root]
-           )).grid(column=2, row=0, rowspan=2, padx=PADDING_MEDIUM, pady=15, ipady=15, sticky="EW")
+           )).grid(column=2, row=0, padx=PADDING_MEDIUM, pady=PADDING_MEDIUM, ipady=10, sticky="EW")
+
+ttk.Button(tab1,
+           text="🔗 Emitir CTe Unificado",
+           command=lambda: thread_0.start_thread(
+               cte_list_unified, progressbar, arguments=[cal.get_date(),
+                                                         cal_f.get_date(),
+                                                         folderpath.get(),
+                                                         cte_folder.get(),
+                                                         root]
+           )).grid(column=2, row=1, padx=PADDING_MEDIUM, pady=PADDING_MEDIUM, ipady=10, sticky="EW")
 
 # --- TAB 3: Utilitários Buttons ---
 ttk.Button(tab3,

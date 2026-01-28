@@ -1390,127 +1390,124 @@ def cte_unique(cal_date, cte_path, cte_folder_path, cte_type, cte_s, volumes, ro
 
 
 def cte_symbolic(start_date, final_date, folderpath, cte_folder, root):
+    """
+    Fetch services for Symbolic CTE emission using the optimized single API endpoint.
+    All filtering is done server-side for better performance.
+    
+    Uses GET /api/public/service/cte-emission-symbolic endpoint which returns:
+    - Pre-filtered services (shipping company, emission_type, etc.)
+    - Pre-resolved addresses and collectors
+    - Pre-computed symbolic_emission_data (CNPJs, tomador, fixed values)
+    """
+    
+    # Mapping of full state names to abbreviations
+    state_name_to_abbrev = {
+        'ACRE': 'AC', 'ALAGOAS': 'AL', 'AMAPÁ': 'AP', 'AMAZONAS': 'AM',
+        'BAHIA': 'BA', 'CEARÁ': 'CE', 'DISTRITO FEDERAL': 'DF',
+        'ESPÍRITO SANTO': 'ES', 'GOIÁS': 'GO', 'MARANHÃO': 'MA',
+        'MATO GROSSO': 'MT', 'MATO GROSSO DO SUL': 'MS',
+        'MINAS GERAIS': 'MG', 'PARÁ': 'PA', 'PARAÍBA': 'PB',
+        'PARANÁ': 'PR', 'PERNAMBUCO': 'PE', 'PIAUÍ': 'PI',
+        'RIO DE JANEIRO': 'RJ', 'RIO GRANDE DO NORTE': 'RN',
+        'RIO GRANDE DO SUL': 'RS', 'RONDÔNIA': 'RO', 'RORAIMA': 'RR',
+        'SANTA CATARINA': 'SC', 'SÃO PAULO': 'SP', 'SERGIPE': 'SE',
+        'TOCANTINS': 'TO'
+    }
+    
+    def get_state_abbreviation(full_name):
+        """Convert full state name to abbreviation."""
+        if not full_name:
+            return ''
+        full_name_upper = full_name.upper().strip()
+        if len(full_name_upper) == 2:
+            return full_name_upper
+        return state_name_to_abbrev.get(full_name_upper, full_name_upper)
 
-    def get_address_city(add):
-        add_lenght = len(add)
-        add_total = []
-        count = 0
-        cities = ''
-        for i in range(add_lenght):
-            add_city = address.loc[address['id'] == add[i], 'cityIDAddress.name'].values.item()
-            add_total.append(add_city)
-        add_total = np.unique(add_total)
-        for p in add_total:
-            if count == 0:
-                cities = p
-            elif count == len(add_total) - 1:
-                cities += ', ' + p
-            else:
-                cities += ', ' + p
-            count += 1
-        return cities
+    def get_collector_name(collector_data):
+        """Get collector name from pre-resolved collector data."""
+        if not collector_data:
+            return ''
+        return collector_data.get('trading_name', '')
 
-    def get_address_city_listed(add_list):
-        _cities_list = []
-        for add in add_list:
-            add_city = address.loc[address['id'] == add, 'cityIDAddress.name'].values.item()
-            _cities_list.append(add_city)
-        cities_list = np.unique(_cities_list)
-        return cities_list
+    def get_customer_field(row, field):
+        """Extract field from customer dict."""
+        customer = row.get('customer')
+        if customer and isinstance(customer, dict):
+            return customer.get(field, '')
+        return ''
 
-    def get_collector(col):
-        col_name = collector.loc[collector['id'] == col, 'trading_name'].values.item()
-        return col_name
+    def get_requested_service_field(row, field):
+        """Extract field from requested_service dict."""
+        rs = row.get('requested_service')
+        if rs and isinstance(rs, dict):
+            return rs.get(field, '')
+        return ''
 
-    def get_transp(id_t):
-        try:
-            if id_t is not None:
-                transp = bases.loc[bases['id'] == id_t, 'shippingIDBranch.company_name'].values.item()
-            else:
-                transp = ""
-        except ValueError:
-            transp = ""
-        return transp
-
-    def get_collector_cnpj(col):
-        _cnpj_list = []
-        cnpj = collector.loc[collector['id'] == col, 'cnpj'].values.item()
-        _cnpj_list.append(cnpj)
-        return _cnpj_list
+    def get_budget_field(row, field):
+        """Extract field from budget dict."""
+        budget = row.get('budget')
+        if budget and isinstance(budget, dict):
+            return budget.get(field, 0)
+        return 0
 
     now = dt.datetime.now()
     now_date = dt.datetime.strftime(start_date, '%d-%m-%Y')
     now = dt.datetime.strftime(now, "%H-%M")
 
-    di = dt.datetime.strftime(start_date, '%d/%m/%Y')
-    df = dt.datetime.strftime(final_date, '%d/%m/%Y')
+    # Format dates for API (ISO format)
+    start_date_iso = dt.datetime.strftime(start_date, '%Y-%m-%d')
+    end_date_iso = dt.datetime.strftime(final_date, '%Y-%m-%d')
 
-    di_dt = dt.datetime.strptime(di, '%d/%m/%Y')
-    df_dt = dt.datetime.strptime(df, '%d/%m/%Y')
+    print(f"Fetching Symbolic CTE emission services from {start_date_iso} to {end_date_iso}...")
 
-    di_temp = di_dt - dt.timedelta(days=5)
-    df_temp = df_dt + dt.timedelta(days=5)
+    # SINGLE OPTIMIZED API CALL - All filtering done server-side
+    try:
+        api_url = f'https://transportebiologico.com.br/api/public/service/cte-emission-symbolic?initialDate={start_date_iso}&finalDate={end_date_iso}'
+        
+        combined_headers = {**r.headers, **r.auth}
+        response = requests.get(api_url, headers=combined_headers)
+        response.raise_for_status()
+        
+        response_json = response.json()
+        
+        print(f"Response keys: {response_json.keys() if isinstance(response_json, dict) else 'Not a dict'}")
+        
+        services_data = response_json.get('services', [])
+        total = response_json.get('total', len(services_data))
+            
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching services for Symbolic CTE emission: {e}")
+        traceback.print_exc()
+        return
+    except Exception as e:
+        print(f"Error processing response: {e}")
+        traceback.print_exc()
+        return
 
-    di = dt.datetime.strftime(di_temp, '%d/%m/%Y')
-    df = dt.datetime.strftime(df_temp, '%d/%m/%Y')
+    print(f"Found {total} services for Symbolic CTE emission")
 
-    bases = r.request_public('https://transportebiologico.com.br/api/public/branch')
-    address = r.request_public('https://transportebiologico.com.br/api/public/address')
-    collector = r.request_public('https://transportebiologico.com.br/api/public/collector')
-    services_ongoing = r.request_public('https://transportebiologico.com.br/api/public/service')
-    services_finalized = r.request_public(
-        f'https://transportebiologico.com.br/api/public/service/finalized/?startFilter={di}&endFilter={df}',
-        'post'
-    )
+    if total == 0 or not services_data:
+        print("No services found for Symbolic CTE emission")
+        confirmation_pop_up(root, "Nenhum serviço encontrado para emissão de CTE simbólico no período selecionado.")
+        return
 
-    sv = pd.concat([services_ongoing, services_finalized], ignore_index=True)
-    sv = sv.loc[sv['is_business'] == False]
-
-    df_dt += dt.timedelta(days=1)
-
-    sv['collectDateTime'] = pd.to_datetime(sv['serviceIDRequested.collect_date']) - dt.timedelta(hours=3)
-    sv['collectDateTime'] = sv['collectDateTime'].dt.tz_localize(None)
-
-    sv.drop(sv[sv['collectDateTime'] < di_dt].index, inplace=True)
-    sv.drop(sv[sv['collectDateTime'] > df_dt].index, inplace=True)
-
-    sv.to_excel('ServicesAPI.xlsx', index=True)
-
-    sv = pd.concat([sv[sv['cte_loglife_pdf_associated'].isnull()],
-                    sv[sv['cte_loglife_pdf_associated'] == 'nan'],
-                    sv[sv['cte_loglife_pdf_associated'] == '-']], ignore_index=True)
-
-    sv.drop(sv[sv['customerIDService.emission_type'] == 'CTE'].index, inplace=True)
-    sv.drop(sv[sv['customerIDService.emission_type'] == 'AMBOS'].index, inplace=True)
-    sv.drop(sv[sv['serviceIDRequested.service_type'] == 'DEDICADO'].index, inplace=True)
-    sv.drop(sv[sv['customerIDService.trading_firstname'] == 'BIOCLINICO'].index, inplace=True)
-    sv.drop(sv[sv['customerIDService.trading_firstname'] == 'ONCOBIO SERVIÇOS DE SAÚDE'].index, inplace=True)
-    # sv.drop(sv[sv['customerIDService.trading_firstname'] == 'OC PRECISION MEDICINE'].index, inplace=True)
-
-    sv['TRANSPORTADORA'] = sv['serviceIDRequested.source_branch_id'].map(get_transp)
-
-    sv = pd.concat([
-        sv[sv['TRANSPORTADORA'] == 'AZUL CARGO'],
-        sv[sv['TRANSPORTADORA'] == 'AGUIA BRANCA ENCOMENDAS'],
-        sv[sv['TRANSPORTADORA'] == 'BRASIL SUL'],
-        sv[sv['TRANSPORTADORA'] == 'SOL CARGAS'],
-        sv[sv['TRANSPORTADORA'] == 'JEM']
-    ],
-        ignore_index=True)
-
-    sv['origCityList'] = sv['serviceIDRequested.source_address_id'].map(get_address_city_listed)
-    sv['destCityList'] = sv['serviceIDRequested.destination_address_id'].map(get_address_city_listed)
-    sv['origCity'] = sv['serviceIDRequested.source_address_id'].map(get_address_city)
-    sv['destCity'] = sv['serviceIDRequested.destination_address_id'].map(get_address_city)
+    # Convert to DataFrame
+    sv = pd.DataFrame(services_data)
+    
+    print(f"DataFrame columns: {sv.columns.tolist()}")
+    print(f"DataFrame shape: {sv.shape}")
 
     sv.sort_values(
         by="protocol", axis=0, ascending=True, inplace=True, kind='quicksort', na_position='last'
     )
 
+    sv.to_excel('ServicesAPI_Symbolic.xlsx', index=False)
+
+    # Build report DataFrame
     report = pd.DataFrame(columns=[])
 
     report['PROTOCOLO'] = sv['protocol']
-    report['CLIENTE'] = sv['customerIDService.trading_firstname']
+    report['CLIENTE'] = sv.apply(lambda row: get_customer_field(row, 'trading_firstname'), axis=1)
     report['ETAPA'] = np.select(
         condlist=[
             sv['step'] == 'availableService',
@@ -1529,13 +1526,21 @@ def cte_symbolic(start_date, final_date, folderpath, cte_folder, root):
             'AGUARDANDO DISPONIBILIZAÇÃO', 'AGUARDANDO ALOCAÇÃO', 'EM ROTA DE ENTREGA', 'ENTREGANDO',
             'DISPONÍVEL PARA RETIRADA', 'DESEMBARCANDO', 'VALIDAR EMBARQUE', 'AGENDADO', 'COLETANDO',
             'EM ROTA DE EMBARQUE', 'EMBARCANDO SERVIÇO', 'FINALIZADO'],
-        default=0
+        default=''
     )
+    
+    sv['collectDateTime'] = sv.apply(
+        lambda row: get_requested_service_field(row, 'collect_date'), axis=1
+    )
+    sv['collectDateTime'] = pd.to_datetime(sv['collectDateTime']) - dt.timedelta(hours=3)
+    sv['collectDateTime'] = sv['collectDateTime'].dt.tz_localize(None)
+    
     report['DATA COLETA'] = sv['collectDateTime'].dt.strftime(date_format='%d/%m/%Y')
-    report['CIDADE ORIGEM'] = sv['origCity']
-    report['COLETADOR ORIGEM'] = sv['serviceIDRequested.source_collector_id'].map(get_collector)
-    report['CIDADE DESTINO'] = sv['destCity']
-    report['COLETADOR DESTINO'] = sv['serviceIDRequested.destination_collector_id'].map(get_collector)
+    report['CIDADE ORIGEM'] = sv['source_city']
+    report['COLETADOR ORIGEM'] = sv['source_collector'].apply(get_collector_name)
+    report['CIDADE DESTINO'] = sv['destination_city']
+    report['COLETADOR DESTINO'] = sv['destination_collector'].apply(get_collector_name)
+    report['TRANSPORTADORA'] = sv['source_branch'].apply(lambda x: x.get('shipping_company', '') if x else '')
 
     cte_path = folderpath
     cte_path = cte_path.replace('/', '\\')
@@ -1552,55 +1557,67 @@ def cte_symbolic(start_date, final_date, folderpath, cte_folder, root):
 
     bot_cte = bot.Bot()
 
-    # bot_cte.open_bsoft(path=filename.get(), login=login.get(), password=password.get())
     current_row = 0
 
-    for protocol in sv['protocol']:
-
+    for idx, row in sv.iterrows():
+        protocol = row['protocol']
         report_date = dt.datetime.strftime(dt.datetime.now(), '%d/%m/%Y')
-        source_add = sv.loc[sv['protocol'] == protocol, 'serviceIDRequested.source_address_id'].values.item()
-        destination_add = sv.loc[sv['protocol'] == protocol, 'serviceIDRequested.destination_address_id'].values.item()
-        valor = str(sv.loc[sv['protocol'] == protocol, 'serviceIDRequested.budgetIDService.price'].values.item())
-        uf1 = address.loc[address['id'] == source_add[0], 'state'].values.item()
-        uf2 = address.loc[address['id'] == destination_add[0], 'state'].values.item()
-        uf_rem = uf_base.loc[uf_base['Estado'] == uf1, 'UF'].values.item()
-        uf_dest = uf_base.loc[uf_base['Estado'] == uf2, 'UF'].values.item()
-        icms_obs = uf_base.loc[uf_base['Estado'] == uf_rem, 'Info'].values.item()
-        aliq = aliquota_base.loc[aliquota_base['UF'] == uf_rem, uf_dest].values.item()
+
+        # Get pre-computed symbolic emission data from API
+        symbolic_data = row.get('symbolic_emission_data') or {}
+        
+        # Get source address state for ICMS calculation
+        source_addresses = row.get('source_addresses') or []
+        destination_addresses = row.get('destination_addresses') or []
+        
+        if source_addresses:
+            uf1 = get_state_abbreviation(source_addresses[0].get('city_state', source_addresses[0].get('state', '')))
+        else:
+            uf1 = ''
+        
+        if destination_addresses:
+            uf2 = get_state_abbreviation(destination_addresses[0].get('city_state', destination_addresses[0].get('state', '')))
+        else:
+            uf2 = ''
+        
+        # Get budget price for ICMS calculation (even though emission uses fixed 5,00)
+        budget_price = get_budget_field(row, 'price') or get_requested_service_field(row, 'price') or 0
+        
+        try:
+            uf_rem = uf_base.loc[uf_base['Estado'] == uf1, 'UF'].values.item()
+        except ValueError:
+            uf_rem = uf1
+        
+        try:
+            uf_dest = uf_base.loc[uf_base['Estado'] == uf2, 'UF'].values.item()
+        except ValueError:
+            uf_dest = uf2
+        
+        try:
+            icms_obs = uf_base.loc[uf_base['Estado'] == uf_rem, 'Info'].values.item()
+        except ValueError:
+            icms_obs = ''
+        
+        try:
+            aliq = aliquota_base.loc[aliquota_base['UF'] == uf_rem, uf_dest].values.item()
+        except ValueError:
+            aliq = "0"
+        
         obs_text = f'Protocolo {protocol} - {icms_obs}'
-        aliq_text = float(aliq) * float(valor) * 0.008
+        aliq_text = float(aliq) * float(budget_price) * 0.008
         aliq_text = "{:0.2f}".format(aliq_text)
 
         if uf_rem != "MG":
-
             obs_text = obs_text.replace('#', aliq_text)
             aliq = "0"
 
-        source_collector = sv.loc[
-            sv['protocol'] == protocol, 'serviceIDRequested.source_collector_id'
-        ].values.item()
-        dest_collector = sv.loc[
-            sv['protocol'] == protocol, 'serviceIDRequested.destination_collector_id'
-        ].values.item()
-        valor = "5,00"
-        cliente = sv.loc[sv['protocol'] == protocol, 'customerIDService.trading_firstname'].values.item()
-        cnpj_remetente = get_collector_cnpj(source_collector)
-        if cliente == 'METHODOS LABORATORIO':
-            cnpj_destinatario = ['30296133000118']
-        else:
-            cnpj_destinatario = get_collector_cnpj(dest_collector)
-        if cnpj_destinatario == ['12611020000188'] or cnpj_destinatario == ['12.611.020/0001-88']:
-            cnpj_destinatario = ['09464343000181']
-        tipo_cte = 1
-        vols = 1
-        if cnpj_remetente[0] in [
-            "17.062.517/0001-08", "17.062.517/0002-99", "50.699.404/0001-93"
-        ] or cnpj_remetente in [
-            "17.062.517/0001-08", "17.062.517/0002-99", "50.699.404/0001-93"
-        ]:
-            tomador = "Destinatário"
-        else:
-            tomador = "Remetente"
+        # Use pre-computed values from symbolic_emission_data
+        cnpj_remetente = [symbolic_data.get('source_collector_cnpj', '')]
+        cnpj_destinatario = [symbolic_data.get('destination_collector_cnpj', '')]
+        tomador = symbolic_data.get('tomador', 'Remetente')
+        valor = symbolic_data.get('fixed_value', '5,00')
+        vols = symbolic_data.get('fixed_volumes', 1)
+        tipo_cte = symbolic_data.get('fixed_cte_instance', 1)
 
         bot_cte.action(
             cnpj_sender=cnpj_remetente,
@@ -1613,7 +1630,7 @@ def cte_symbolic(start_date, final_date, folderpath, cte_folder, root):
         )
         bot_cte.part4(
             tax=str(aliq),
-            tp_info=aliq_text,
+            tp_info=str(aliq_text),
             uf=uf_rem,
             icms_text=obs_text,
             price=valor
@@ -1621,10 +1638,13 @@ def cte_symbolic(start_date, final_date, folderpath, cte_folder, root):
 
         cte_llm = int(bot_cte.get_clipboard())
         
+        cte_file = f'{str(cte_llm).zfill(8)}.pdf'
+        
+        # Build payload with symbolic flag
         payload = {
             "data": [
                 {
-                    "protocol": int(protocol),
+                    "protocol": str(protocol),
                     "cte_loglife": cte_llm,
                     "cte_loglife_emission_date": report_date,
                     "symbolic": True
@@ -1632,6 +1652,7 @@ def cte_symbolic(start_date, final_date, folderpath, cte_folder, root):
             ]
         }
         
+        # Send JSON payload to API
         r.request_private(
             link="https://transportebiologico.com.br/api/uploads/cte-loglife/json",
             request_type="post",
@@ -1639,11 +1660,10 @@ def cte_symbolic(start_date, final_date, folderpath, cte_folder, root):
             json=True
         )
 
-        cte_file = f'{str(cte_llm).zfill(8)}.pdf'
-
         report.at[report.index[current_row], 'CTE LOGLIFE'] = cte_llm
         report.to_excel(excel_file, index=False)
 
+        # Create association CSV
         associate = pd.DataFrame({
             'Protocolo': [int(protocol)],
             'Arquivo PDF': [cte_file],
@@ -1651,6 +1671,7 @@ def cte_symbolic(start_date, final_date, folderpath, cte_folder, root):
 
         associate.to_csv(csv_associate, index=False, encoding='utf-8')
 
+        # Upload PDF file
         while True:
             try:
                 r.post_file("https://transportebiologico.com.br/api/pdf",
@@ -1663,18 +1684,429 @@ def cte_symbolic(start_date, final_date, folderpath, cte_folder, root):
                 time.sleep(0.5)
                 continue
 
+        # Associate PDF with protocol
         r.post_file('https://transportebiologico.com.br/api/pdf/associate',
                     csv_associate,
                     upload_type="CTE LOGLIFE")
 
-        os.remove(csv_file)
         os.remove(csv_associate)
-
-        os.remove(excel_file)
 
         current_row += 1
 
-    confirmation_pop_up(root, "Emissões realizadas com sucesso!")
+    confirmation_pop_up(root, "Emissões de CTE simbólico realizadas com sucesso!")
+
+
+def cte_list_unified(start_date, final_date, folderpath, cte_folder, root):
+    """
+    Fetch services for Unified CTE emission (both Normal and Symbolic) using the optimized single API endpoint.
+    All filtering is done server-side for better performance.
+    
+    Priority order:
+    1. Symbolic CTEs (highest priority)
+    2. Normal CTEs with modal RODOVIÁRIO (second priority)
+    3. Normal CTEs with other modals (lowest priority)
+    
+    Uses GET /api/public/service/cte-emission-unified endpoint which returns:
+    - Pre-filtered services with priority ordering
+    - Pre-resolved addresses and collectors
+    - Pre-computed symbolic_emission_data for symbolic CTEs
+    """
+    
+    # Mapping of full state names to abbreviations
+    state_name_to_abbrev = {
+        'ACRE': 'AC', 'ALAGOAS': 'AL', 'AMAPÁ': 'AP', 'AMAZONAS': 'AM',
+        'BAHIA': 'BA', 'CEARÁ': 'CE', 'DISTRITO FEDERAL': 'DF',
+        'ESPÍRITO SANTO': 'ES', 'GOIÁS': 'GO', 'MARANHÃO': 'MA',
+        'MATO GROSSO': 'MT', 'MATO GROSSO DO SUL': 'MS',
+        'MINAS GERAIS': 'MG', 'PARÁ': 'PA', 'PARAÍBA': 'PB',
+        'PARANÁ': 'PR', 'PERNAMBUCO': 'PE', 'PIAUÍ': 'PI',
+        'RIO DE JANEIRO': 'RJ', 'RIO GRANDE DO NORTE': 'RN',
+        'RIO GRANDE DO SUL': 'RS', 'RONDÔNIA': 'RO', 'RORAIMA': 'RR',
+        'SANTA CATARINA': 'SC', 'SÃO PAULO': 'SP', 'SERGIPE': 'SE',
+        'TOCANTINS': 'TO'
+    }
+    
+    def get_state_abbreviation(full_name):
+        """Convert full state name to abbreviation."""
+        if not full_name:
+            return ''
+        full_name_upper = full_name.upper().strip()
+        if len(full_name_upper) == 2:
+            return full_name_upper
+        return state_name_to_abbrev.get(full_name_upper, full_name_upper)
+    
+    def get_address_name_from_list(addresses):
+        """Format address names from pre-resolved address list."""
+        if not addresses:
+            return ''
+        add_length = len(addresses)
+        add_total = ''
+        for i, addr in enumerate(addresses):
+            add_name = addr.get('trading_name', '')
+            add_branch = addr.get('branch', '')
+            count = i + 1
+            space = "\n" if count != add_length else ''
+            if add_length == 1:
+                listing = str(add_name)
+            else:
+                listing = str(count) + '. ' + str(add_name)
+            add_total += listing + ' - ' + add_branch + space
+        return add_total
+
+    def get_address_meta_from_list(addresses):
+        """Format full address details from pre-resolved address list."""
+        if not addresses:
+            return ''
+        add_length = len(addresses)
+        add_total = ''
+        for i, addr in enumerate(addresses):
+            add_street = addr.get('street', '')
+            add_num = addr.get('number', '')
+            add_dist = addr.get('neighborhood', '')
+            add_city = addr.get('city_name', '')
+            add_state = addr.get('city_state', '')
+            add_cep = addr.get('cep', '')
+            count = i + 1
+            space = "\n" if count != add_length else ''
+            listing = '' if add_length == 1 else str(count) + '. '
+            add_total += listing + add_street.title() + ', ' + add_num + ' - ' + add_dist.title() + ', ' \
+                         + add_city.title() + ' - ' + add_state + ', ' + add_cep + space
+        return add_total
+
+    def get_address_cnpj_listed_from_list(addresses):
+        """Format CNPJs from pre-resolved address list."""
+        if not addresses:
+            return ''
+        add_length = len(addresses)
+        add_total = ''
+        for i, addr in enumerate(addresses):
+            cnpj = addr.get('cnpj_cpf', '')
+            count = i + 1
+            space = "\n" if count != add_length else ''
+            listing = '' if add_length == 1 else str(count) + '. '
+            add_total += listing + cnpj + space
+        return add_total
+
+    def get_address_cnpj_from_list(addresses):
+        """Get list of CNPJs from pre-resolved address list."""
+        if not addresses:
+            return []
+        return [addr.get('cnpj_cpf', '') for addr in addresses]
+
+    def get_collector_name(collector_data):
+        """Get collector name from pre-resolved collector data."""
+        if not collector_data:
+            return ''
+        return collector_data.get('trading_name', '')
+
+    def get_customer_field(row, field):
+        """Extract field from customer dict."""
+        customer = row.get('customer')
+        if customer and isinstance(customer, dict):
+            return customer.get(field, '')
+        return ''
+
+    def get_requested_service_field(row, field):
+        """Extract field from requested_service dict."""
+        rs = row.get('requested_service')
+        if rs and isinstance(rs, dict):
+            return rs.get(field, '')
+        return ''
+
+    def get_budget_field(row, field):
+        """Extract field from budget dict."""
+        budget = row.get('budget')
+        if budget and isinstance(budget, dict):
+            return budget.get(field, 0)
+        return 0
+
+    now = dt.datetime.now()
+    now_date = dt.datetime.strftime(start_date, '%d-%m-%Y')
+    now_time = dt.datetime.strftime(now, "%H-%M")
+
+    # Format dates for API (ISO format)
+    start_date_iso = dt.datetime.strftime(start_date, '%Y-%m-%d')
+    end_date_iso = dt.datetime.strftime(final_date, '%Y-%m-%d')
+
+    print(f"Fetching Unified CTE emission services from {start_date_iso} to {end_date_iso}...")
+
+    # SINGLE OPTIMIZED API CALL - All filtering done server-side with priority ordering
+    try:
+        api_url = f'https://transportebiologico.com.br/api/public/service/cte-emission-unified?initialDate={start_date_iso}&finalDate={end_date_iso}'
+        
+        combined_headers = {**r.headers, **r.auth}
+        response = requests.get(api_url, headers=combined_headers)
+        response.raise_for_status()
+        
+        response_json = response.json()
+        
+        print(f"Response keys: {response_json.keys() if isinstance(response_json, dict) else 'Not a dict'}")
+        
+        services_data = response_json.get('services', [])
+        total = response_json.get('total', len(services_data))
+        symbolic_count = response_json.get('symbolic_count', 0)
+        normal_count = response_json.get('normal_count', 0)
+        normal_rodoviario_count = response_json.get('normal_rodoviario_count', 0)
+            
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching services for Unified CTE emission: {e}")
+        traceback.print_exc()
+        return
+    except Exception as e:
+        print(f"Error processing response: {e}")
+        traceback.print_exc()
+        return
+
+    print(f"Found {total} services for Unified CTE emission")
+    print(f"  - Symbolic: {symbolic_count}")
+    print(f"  - Normal: {normal_count} (RODOVIÁRIO: {normal_rodoviario_count})")
+
+    if total == 0 or not services_data:
+        print("No services found for Unified CTE emission")
+        confirmation_pop_up(root, "Nenhum serviço encontrado para emissão de CTE unificado no período selecionado.")
+        return
+
+    # Convert to DataFrame - services are already sorted by priority from API
+    sv = pd.DataFrame(services_data)
+    
+    print(f"DataFrame columns: {sv.columns.tolist()}")
+    print(f"DataFrame shape: {sv.shape}")
+
+    sv.to_excel('ServicesAPI_Unified.xlsx', index=False)
+
+    # Build report DataFrame
+    report = pd.DataFrame(columns=[])
+
+    report['PROTOCOLO'] = sv['protocol']
+    report['TIPO'] = sv.apply(lambda row: row.get('priority_label', 'UNKNOWN'), axis=1)
+    report['CLIENTE'] = sv.apply(lambda row: get_customer_field(row, 'trading_firstname'), axis=1)
+    report['ETAPA'] = np.select(
+        condlist=[
+            sv['step'] == 'availableService',
+            sv['step'] == 'toAllocateService',
+            sv['step'] == 'toDeliveryService',
+            sv['step'] == 'deliveringService',
+            sv['step'] == 'toLandingService',
+            sv['step'] == 'landingService',
+            sv['step'] == 'toBoardValidate',
+            sv['step'] == 'toCollectService',
+            sv['step'] == 'collectingService',
+            sv['step'] == 'toBoardService',
+            sv['step'] == 'boardingService',
+            sv['step'] == 'finishedService'],
+        choicelist=[
+            'AGUARDANDO DISPONIBILIZAÇÃO', 'AGUARDANDO ALOCAÇÃO', 'EM ROTA DE ENTREGA', 'ENTREGANDO',
+            'DISPONÍVEL PARA RETIRADA', 'DESEMBARCANDO', 'VALIDAR EMBARQUE', 'AGENDADO', 'COLETANDO',
+            'EM ROTA DE EMBARQUE', 'EMBARCANDO SERVIÇO', 'FINALIZADO'],
+        default=''
+    )
+    
+    sv['collectDateTime'] = sv.apply(
+        lambda row: get_requested_service_field(row, 'collect_date'), axis=1
+    )
+    sv['collectDateTime'] = pd.to_datetime(sv['collectDateTime']) - dt.timedelta(hours=3)
+    sv['collectDateTime'] = sv['collectDateTime'].dt.tz_localize(None)
+    
+    report['DATA COLETA'] = sv['collectDateTime'].dt.strftime(date_format='%d/%m/%Y')
+    report['PREÇO TRANSPORTE'] = sv.apply(lambda row: get_budget_field(row, 'price'), axis=1)
+    report['NOME REMETENTE'] = sv['source_addresses'].apply(get_address_name_from_list)
+    report['CIDADE ORIGEM'] = sv['source_city']
+    report['ENDEREÇO REMETENTE'] = sv['source_addresses'].apply(get_address_meta_from_list)
+    report['CNPJ/CPF REMETENTE'] = sv['source_addresses'].apply(get_address_cnpj_listed_from_list)
+    report['COLETADOR ORIGEM'] = sv['source_collector'].apply(get_collector_name)
+    report['NOME DESTINATÁRIO'] = sv['destination_addresses'].apply(get_address_name_from_list)
+    report['CIDADE DESTINO'] = sv['destination_city']
+    report['ENDEREÇO DESTINATÁRIO'] = sv['destination_addresses'].apply(get_address_meta_from_list)
+    report['CNPJ/CPF DESTINATÁRIO'] = sv['destination_addresses'].apply(get_address_cnpj_listed_from_list)
+    report['COLETADOR DESTINO'] = sv['destination_collector'].apply(get_collector_name)
+
+    cte_path = folderpath
+    cte_path = cte_path.replace('/', '\\')
+
+    excel_file = f'{cte_path}\\Lista CTE Unificado-{now_date}-{now_time}.xlsx'
+    csv_associate = f'{cte_path}\\Associar Unificado-{now_date}-{now_time}.csv'
+
+    cte_folder_path = cte_folder.replace('/', '\\')
+
+    report.to_excel(excel_file, index=False)
+
+    print("Relatório exportado!")
+
+    bot_cte = bot.Bot()
+
+    current_row = 0
+
+    for idx, row in sv.iterrows():
+        protocol = row['protocol']
+        is_symbolic = row.get('is_symbolic', False)
+        priority_label = row.get('priority_label', 'UNKNOWN')
+        
+        report_date = dt.datetime.strftime(dt.datetime.now(), '%d/%m/%Y')
+
+        print(f"Processing [{priority_label}] {protocol}...")
+
+        # Get source address state for ICMS calculation
+        source_addresses = row.get('source_addresses') or []
+        destination_addresses = row.get('destination_addresses') or []
+        
+        if source_addresses:
+            uf1 = get_state_abbreviation(source_addresses[0].get('city_state', source_addresses[0].get('state', '')))
+        else:
+            uf1 = ''
+        
+        if destination_addresses:
+            uf2 = get_state_abbreviation(destination_addresses[0].get('city_state', destination_addresses[0].get('state', '')))
+        else:
+            uf2 = ''
+
+        # Get budget price for ICMS calculation
+        budget_price = get_budget_field(row, 'price') or get_requested_service_field(row, 'price') or 0
+        
+        try:
+            uf_rem = uf_base.loc[uf_base['Estado'] == uf1, 'UF'].values.item()
+        except ValueError:
+            uf_rem = uf1
+        
+        try:
+            uf_dest = uf_base.loc[uf_base['Estado'] == uf2, 'UF'].values.item()
+        except ValueError:
+            uf_dest = uf2
+        
+        try:
+            icms_obs = uf_base.loc[uf_base['Estado'] == uf_rem, 'Info'].values.item()
+        except ValueError:
+            icms_obs = ''
+        
+        try:
+            aliq = aliquota_base.loc[aliquota_base['UF'] == uf_rem, uf_dest].values.item()
+        except ValueError:
+            aliq = "0"
+        
+        obs_text = f'Protocolo {protocol} - {icms_obs}'
+        aliq_text = float(aliq) * float(budget_price) * 0.008
+        aliq_text = "{:0.2f}".format(aliq_text)
+
+        if uf_rem != "MG":
+            obs_text = obs_text.replace('#', aliq_text)
+            aliq = "0"
+
+        # Branch logic based on CTE type
+        if is_symbolic:
+            # === SYMBOLIC CTE EMISSION ===
+            symbolic_data = row.get('symbolic_emission_data') or {}
+            
+            cnpj_remetente = [symbolic_data.get('source_collector_cnpj', '')]
+            cnpj_destinatario = [symbolic_data.get('destination_collector_cnpj', '')]
+            tomador = symbolic_data.get('tomador', 'Remetente')
+            valor = symbolic_data.get('fixed_value', '5,00')
+            vols = symbolic_data.get('fixed_volumes', 1)
+            tipo_cte = symbolic_data.get('fixed_cte_instance', 1)
+
+            bot_cte.action(
+                cnpj_sender=cnpj_remetente,
+                cnpj_receiver=cnpj_destinatario,
+                payer=tomador
+            )
+            bot_cte.part3_normal(
+                cte_instance=tipo_cte,
+                volumes=vols
+            )
+        else:
+            # === NORMAL CTE EMISSION ===
+            customer = row.get('customer') or {}
+            tomador_cnpj = customer.get('cnpj_cpf', '')
+            
+            valor = str(budget_price)
+            
+            cnpj_remetente = get_address_cnpj_from_list(source_addresses)
+            cnpj_destinatario = get_address_cnpj_from_list(destination_addresses)
+
+            if tomador_cnpj in cnpj_remetente:
+                tomador = "Remetente"
+                cnpj_remetente = [tomador_cnpj]
+            elif tomador_cnpj in cnpj_destinatario:
+                tomador = "Destinatário"
+                cnpj_destinatario = [tomador_cnpj]
+            else:
+                tomador = "Outro"
+
+            bot_cte.action(
+                cnpj_sender=cnpj_remetente,
+                cnpj_receiver=cnpj_destinatario,
+                payer=tomador,
+                payer_cnpj=tomador_cnpj
+            )
+            bot_cte.part3_normal()
+
+        # Common ICMS calculation and emission for both types
+        bot_cte.part4(
+            tax=str(aliq),
+            tp_info=str(aliq_text),
+            uf=uf_rem,
+            icms_text=obs_text,
+            price=valor
+        )
+
+        cte_llm = int(bot_cte.get_clipboard())
+        
+        cte_file = f'{str(cte_llm).zfill(8)}.pdf'
+        
+        # Build payload - add symbolic flag for symbolic CTEs
+        payload = {
+            "data": [
+                {
+                    "protocol": str(protocol),
+                    "cte_loglife": cte_llm,
+                    "cte_loglife_emission_date": report_date
+                }
+            ]
+        }
+        
+        if is_symbolic:
+            payload["data"][0]["symbolic"] = True
+        
+        # Send JSON payload to API
+        r.request_private(
+            link="https://transportebiologico.com.br/api/uploads/cte-loglife/json",
+            request_type="post",
+            payload=payload,
+            json=True
+        )
+
+        report.at[report.index[current_row], 'CTE LOGLIFE'] = cte_llm
+        report.to_excel(excel_file, index=False)
+
+        # Create association CSV
+        associate = pd.DataFrame({
+            'Protocolo': [int(protocol)],
+            'Arquivo PDF': [cte_file],
+        })
+
+        associate.to_csv(csv_associate, index=False, encoding='utf-8')
+
+        # Upload PDF file
+        while True:
+            try:
+                r.post_file("https://transportebiologico.com.br/api/pdf",
+                            f'{cte_folder_path}\\{cte_file}',
+                            upload_type="CTE LOGLIFE",
+                            file_format="application/pdf",
+                            file_type="pdf_files")
+                break
+            except FileNotFoundError:
+                time.sleep(0.5)
+                continue
+
+        # Associate PDF with protocol
+        r.post_file('https://transportebiologico.com.br/api/pdf/associate',
+                    csv_associate,
+                    upload_type="CTE LOGLIFE")
+
+        os.remove(csv_associate)
+
+        current_row += 1
+
+    confirmation_pop_up(root, f"Emissões de CTE unificado realizadas com sucesso!\n\nTotal: {total}\nSimbólicos: {symbolic_count}\nNormais: {normal_count}")
 
 
 def cte_list_grouped(start_date, final_date, folderpath, cte_folder, root):
