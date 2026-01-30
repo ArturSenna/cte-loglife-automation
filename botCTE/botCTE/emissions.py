@@ -1616,7 +1616,7 @@ def cte_symbolic(start_date, final_date, folderpath, cte_folder, root):
         cnpj_destinatario = [symbolic_data.get('destination_collector_cnpj', '')]
         tomador = symbolic_data.get('tomador', 'Remetente')
         valor = symbolic_data.get('fixed_value', '5,00')
-        vols = symbolic_data.get('fixed_volumes', 1)
+        vols = symbolic_data.get('volumes', 1)
         tipo_cte = symbolic_data.get('fixed_cte_instance', 1)
 
         bot_cte.action(
@@ -1983,12 +1983,6 @@ def cte_list_unified(start_date, final_date, folderpath, cte_folder, root):
             aliq = "0"
         
         obs_text = f'Protocolo {protocol} - {icms_obs}'
-        aliq_text = float(aliq) * float(budget_price) * 0.008
-        aliq_text = "{:0.2f}".format(aliq_text)
-
-        if uf_rem != "MG":
-            obs_text = obs_text.replace('#', aliq_text)
-            aliq = "0"
 
         # Branch logic based on CTE type
         if is_symbolic:
@@ -1999,7 +1993,7 @@ def cte_list_unified(start_date, final_date, folderpath, cte_folder, root):
             cnpj_destinatario = [symbolic_data.get('destination_collector_cnpj', '')]
             tomador = symbolic_data.get('tomador', 'Remetente')
             valor = symbolic_data.get('fixed_value', '5,00')
-            vols = symbolic_data.get('fixed_volumes', 1)
+            vols = symbolic_data.get('volumes', 1)
             tipo_cte = symbolic_data.get('fixed_cte_instance', 1)
 
             bot_cte.action(
@@ -2037,6 +2031,16 @@ def cte_list_unified(start_date, final_date, folderpath, cte_folder, root):
                 payer_cnpj=tomador_cnpj
             )
             bot_cte.part3_normal()
+
+        # Calculate aliq_text dynamically based on the correct price (valor)
+        # Handle Brazilian number format (comma as decimal separator)
+        valor_float = float(str(valor).replace(',', '.'))
+        aliq_text = float(aliq) * valor_float * 0.008
+        aliq_text = "{:0.2f}".format(aliq_text)
+
+        if uf_rem != "MG":
+            obs_text = obs_text.replace('#', aliq_text)
+            aliq = "0"
 
         # Common ICMS calculation and emission for both types
         bot_cte.part4(
