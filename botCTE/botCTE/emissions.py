@@ -300,8 +300,8 @@ def cte_list(start_date, final_date, folderpath, cte_folder, root):
     sv['collectDateTime'] = sv['collectDateTime'].dt.tz_localize(None)
     
     report['DATA COLETA'] = sv['collectDateTime'].dt.strftime(date_format='%d/%m/%Y')
-    report['PREÇO TRANSPORTE'] = sv.apply(lambda row: get_budget_field(row, 'price'), axis=1)
-    report['PREÇO KG EXTRA'] = sv.apply(lambda row: get_budget_field(row, 'price_kg_extra'), axis=1)
+    report['PREÇO TRANSPORTE'] = sv.apply(lambda row: get_requested_service_field(row, 'price'), axis=1)
+    report['PREÇO KG EXTRA'] = sv.apply(lambda row: get_requested_service_field(row, 'price_kg_extra'), axis=1)
     
     # Use pre-resolved address data (already included in API response)
     report['NOME REMETENTE'] = sv['source_addresses'].apply(get_address_name_from_list)
@@ -1164,8 +1164,8 @@ def cte_unique(cal_date, cte_path, cte_folder_path, cte_type, cte_s, volumes, ro
             'CLIENTE': get_customer_field(service, 'trading_firstname'),
             'ETAPA': get_step_label(service.get('step', '')),
             'DATA COLETA': collect_date_str,
-            'PREÇO TRANSPORTE': get_budget_field(service, 'price'),
-            'PREÇO KG EXTRA': get_budget_field(service, 'price_kg_extra'),
+            'PREÇO TRANSPORTE': get_requested_service_field(service, 'price'),
+            'PREÇO KG EXTRA': get_requested_service_field(service, 'price_kg_extra'),
             'NOME REMETENTE': get_address_name_from_list(service.get('source_addresses')),
             'CIDADE ORIGEM': service.get('source_city', ''),
             'ENDEREÇO REMETENTE': get_address_meta_from_list(service.get('source_addresses')),
@@ -1249,7 +1249,7 @@ def cte_unique(cal_date, cte_path, cte_folder_path, cte_type, cte_s, volumes, ro
             if client_type == "NF":
                 confirmation_pop_up(root, f"Protocolo {protocol} não pode ser emitido como CTe normal!")
                 break
-            valor = str(get_budget_field(service, 'price') or 0)
+            valor = str(get_requested_service_field(service, 'price') or get_budget_field(service, 'price') or 0)
             cnpj_remetente = get_address_cnpj_from_list(source_addresses)
             cnpj_destinatario = get_address_cnpj_from_list(destination_addresses)
             tipo_cte = None
@@ -1581,7 +1581,7 @@ def cte_symbolic(start_date, final_date, folderpath, cte_folder, root):
             uf2 = ''
         
         # Get budget price for ICMS calculation (even though emission uses fixed 5,00)
-        budget_price = get_budget_field(row, 'price') or get_requested_service_field(row, 'price') or 0
+        budget_price = get_requested_service_field(row, 'price') or get_budget_field(row, 'price') or 0
         
         try:
             uf_rem = uf_base.loc[uf_base['Estado'] == uf1, 'UF'].values.item()
@@ -1908,7 +1908,7 @@ def cte_list_unified(start_date, final_date, folderpath, cte_folder, root):
     sv['collectDateTime'] = sv['collectDateTime'].dt.tz_localize(None)
     
     report['DATA COLETA'] = sv['collectDateTime'].dt.strftime(date_format='%d/%m/%Y')
-    report['PREÇO TRANSPORTE'] = sv.apply(lambda row: get_budget_field(row, 'price'), axis=1)
+    report['PREÇO TRANSPORTE'] = sv.apply(lambda row: get_requested_service_field(row, 'price'), axis=1)
     report['NOME REMETENTE'] = sv['source_addresses'].apply(get_address_name_from_list)
     report['CIDADE ORIGEM'] = sv['source_city']
     report['ENDEREÇO REMETENTE'] = sv['source_addresses'].apply(get_address_meta_from_list)
@@ -1960,7 +1960,7 @@ def cte_list_unified(start_date, final_date, folderpath, cte_folder, root):
             uf2 = ''
 
         # Get budget price for ICMS calculation
-        budget_price = get_budget_field(row, 'price') or get_requested_service_field(row, 'price') or 0
+        budget_price = get_requested_service_field(row, 'price') or get_budget_field(row, 'price') or 0
         
         try:
             uf_rem = uf_base.loc[uf_base['Estado'] == uf1, 'UF'].values.item()
