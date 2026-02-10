@@ -276,6 +276,9 @@ class Bot(DesktopBot):
 
         self.tab()
         self.type_key(price)
+        
+        if self.find("icms", matching=0.97, waiting_time=500):
+            self.click()
 
         if not self.find( "CST", matching=0.97, waiting_time=10000):
             self.not_found("CST")
@@ -303,6 +306,25 @@ class Bot(DesktopBot):
         if complimentary:
             self.tab()
         self.enter()
+        
+        if not self.find("ibs-cbs", matching=0.97, waiting_time=10000):
+            self.not_found("ibs-cbs")
+        self.click()
+        
+        self.wait(200)
+            
+        if self.find("ibs-cst", matching=0.97, waiting_time=10000):
+            x, y, w, h = self.get_last_element()
+            self.click_at(x + w // 2, y + 1.5*h)
+            self.click()
+            self.type_keys("000")
+            self.enter()
+            self.type_keys("0")
+            self.enter()
+            self.tab()
+            self.enter()
+        else:
+            raise Exception("Elemento 'ibs-cst' não encontrado")
 
         if self.find("Obs2", matching=0.97, waiting_time=250):
             self.click()
@@ -433,40 +455,43 @@ class Bot(DesktopBot):
         self.click()
         self.wait(200)
 
-        if not self.find("5duploClickStatus", matching=0.97, waiting_time=5000):
-            raise Exception("Elemento '5duploClickStatus' não encontrado")
-        self.double_click()
-        self.wait(200)
+        if self.find("5duploClickStatus", matching=0.97, waiting_time=5000):
+            
+            self.double_click()
+            self.wait(200)
 
-        if not self.find("5.1ct-e", matching=0.97, waiting_time=10000):
-            raise Exception("Elemento '5.1ct-e' não encontrado")
-        self.click()
-        self.wait(200)
+            if self.find("5.1ct-e", matching=0.97, waiting_time=10000):
+                self.click()
+                self.wait(200)
 
-        # Click cancel button
-        if not self.find("5.2Cancelar_CTE", matching=0.97, waiting_time=10000):
-            raise Exception("Elemento '5.2Cancelar_CTE' não encontrado")
-        self.click()
-        self.wait(200)
+            # Click cancel button
+            if not self.find("5.2Cancelar_CTE", matching=0.97, waiting_time=10000):
+                raise Exception("Elemento '5.2Cancelar_CTE' não encontrado")
+            self.click()
+            self.wait(200)
 
-        # Type cancellation reason
-        self.type_keys("TRANSPORTE CANCELADO")
-        self.wait(200)
+            # Type cancellation reason
+            self.type_keys("TRANSPORTE CANCELADO")
+            self.wait(200)
 
-        # Confirm cancellation
-        if not self.find("8confirmar", matching=0.97, waiting_time=10000):
-            raise Exception("Elemento '8confirmar' não encontrado")
-        self.click()
-        self.wait(200)
+            # Confirm cancellation
+            if not self.find("8confirmar", matching=0.97, waiting_time=10000):
+                raise Exception("Elemento '8confirmar' não encontrado")
+            self.click()
+            self.wait(200)
 
-        # Confirm success popup
-        if self.find("9-sucesso", matching=0.97, waiting_time=20000):
-            self.enter()
-            print("✅ Pop-up de sucesso confirmado.")
+            # Confirm success popup
+            if self.find("9-sucesso", matching=0.97, waiting_time=20000):
+                self.enter()
+                print("✅ Pop-up de sucesso confirmado.")
+            else:
+                raise Exception("Pop-up '9-sucesso' não encontrado.")
+
+            print(f"✅ CT-e {numero_cte} cancelado com sucesso!")
+        elif self.find("cancelled", matching=0.97, waiting_time=5000):
+            print(f"⚠️ CT-e {numero_cte} já está cancelado.")
         else:
-            raise Exception("Pop-up '9-sucesso' não encontrado.")
-
-        print(f"✅ CT-e {numero_cte} cancelado com sucesso!")
+            raise Exception(f"CT-e {numero_cte} não encontrado ou status desconhecido.")
 
     
     def icms_slip_entry(self, cte_number, slip_value, supplier, cost_center, barcode_number, emission_date):
