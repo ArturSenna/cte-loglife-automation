@@ -40,30 +40,58 @@ class Start:
     def __init__(self, root_master):
         self.submit_thread = None
         self.master = root_master
+        self._running = False
 
-    def start_thread(self, target_function, progress_bar_func=None, arguments=()):
+    def is_running(self):
+        """Check if a task is currently running."""
+        return self._running and self.submit_thread is not None and self.submit_thread.is_alive()
+
+    def start_thread(self, target_function, progress_bar_func=None, arguments=(), status_label=None):
+        """Start a task in a background thread. Prevents double-click by ignoring
+        calls while a previous task is still running."""
+        if self.is_running():
+            return  # Guard: ignore if already running
+
+        self._running = True
+
+        def wrapped_target(*args):
+            """Wrapper that catches exceptions so the running flag always resets."""
+            try:
+                target_function(*args)
+            except Exception as e:
+                print(f"[ERROR] Thread exception: {e}")
+            finally:
+                self._running = False
 
         def check_thread():
             if self.submit_thread.is_alive():
-                self.master.after(20, check_thread)
+                self.master.after(100, check_thread)
             else:
-                progress_bar_func.stop()
+                if progress_bar_func is not None:
+                    progress_bar_func.stop()
+                if status_label is not None:
+                    status_label.config(text="✔ Concluído")
+                self._running = False
 
-        self.submit_thread = threading.Thread(target=target_function, args=arguments)
+        if status_label is not None:
+            status_label.config(text="⏳ Processando...")
+
+        self.submit_thread = threading.Thread(target=wrapped_target, args=arguments)
         self.submit_thread.daemon = True
         self.submit_thread.start()
         if progress_bar_func is not None:
             progress_bar_func.start()
-            self.master.after(20, check_thread)
+            self.master.after(100, check_thread)
 
 
 class Browse:
+    """Handles file/folder browsing dialogs and updates the associated StringVar."""
 
-    def __init__(self, label_variable):
-        self.label_variable = label_variable
+    def __init__(self, string_variable=None):
+        self.string_variable = string_variable
 
-    def browse_files(self, filename_variable=None, archive_name=None, master=None,
-                     label_config=None, grid_config=None):
+    def browse_files(self, filename_variable=None, archive_name=None, **_kwargs):
+        """Open a file browser for Excel files."""
         filetypes = (
             ('Arquivos Excel', '*.xlsx'),
             ('Excel habilitado para macro', '*.xlsm')
@@ -75,34 +103,35 @@ class Browse:
             filetypes=filetypes
         )
 
+        if not file_name:
+            return  # User cancelled the dialog
+
         with open(f"{archive_name}", 'w') as w:
             w.write(file_name)
-        filename_variable.set(file_name)
 
-        if self.label_variable is not None:
-            self.label_variable.destroy()
-            self.label_variable = ttk.Label(master, text=filename_variable.get(), **label_config)
-            self.label_variable.grid(**grid_config)
+        target_var = filename_variable or self.string_variable
+        if target_var is not None:
+            target_var.set(file_name)
 
-    def browse_folder(self, folder_variable=None, archive_name='folderpath.txt', master=None,
-                      label_config=None, grid_config=None):
-
+    def browse_folder(self, folder_variable=None, archive_name='folderpath.txt', **_kwargs):
+        """Open a folder browser dialog."""
         folder_path = fd.askdirectory(
             title='Selecione a pasta',
             initialdir='cd',
         )
 
+        if not folder_path:
+            return  # User cancelled the dialog
+
         with open(archive_name, 'w') as w:
             w.write(folder_path)
-        folder_variable.set(folder_path)
 
-        if self.label_variable is not None:
-            self.label_variable.destroy()
-            self.label_variable = ttk.Label(master, text=folder_variable.get(), **label_config)
-            self.label_variable.grid(**grid_config)
+        target_var = folder_variable or self.string_variable
+        if target_var is not None:
+            target_var.set(folder_path)
 
-    def browse_exe(self, filename_variable=None, archive_name=None, master=None,
-                   label_config=None, grid_config=None):
+    def browse_exe(self, filename_variable=None, archive_name=None, **_kwargs):
+        """Open a file browser for executables."""
         filetypes = (('Arquivo executável', '*.exe'),)
 
         file_name = fd.askopenfilename(
@@ -111,14 +140,15 @@ class Browse:
             filetypes=filetypes
         )
 
+        if not file_name:
+            return  # User cancelled the dialog
+
         with open(f"{archive_name}", 'w') as w:
             w.write(file_name)
-        filename_variable.set(file_name)
 
-        if self.label_variable is not None:
-            self.label_variable.destroy()
-            self.label_variable = ttk.Label(master, text=filename_variable.get(), **label_config)
-            self.label_variable.grid(**grid_config)
+        target_var = filename_variable or self.string_variable
+        if target_var is not None:
+            target_var.set(file_name)
 
 
 class RequestDataFrame:

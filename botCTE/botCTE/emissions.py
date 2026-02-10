@@ -9,7 +9,43 @@ import requests
 import bot
 from functions import *
 
-r = RequestDataFrame()
+
+# ---------------------------------------------------------------------------
+# Lazy-initialized module globals (deferred to avoid blocking startup)
+# ---------------------------------------------------------------------------
+_r = None
+_uf_base = None
+_aliquota_base = None
+
+
+def _get_r():
+    """Lazily initialize the RequestDataFrame (makes HTTP auth call)."""
+    global _r
+    if _r is None:
+        _r = RequestDataFrame()
+    return _r
+
+
+def _get_uf_base():
+    """Lazily load Complementares.xlsx."""
+    global _uf_base
+    if _uf_base is None:
+        _uf_base = pd.read_excel(os.path.join(_SCRIPT_DIR, 'Complementares.xlsx'), sheet_name='Plan1')
+    return _uf_base
+
+
+def _get_aliquota_base():
+    """Lazily load Alíquota.xlsx."""
+    global _aliquota_base
+    if _aliquota_base is None:
+        _aliquota_base = pd.read_excel(os.path.join(_SCRIPT_DIR, 'Alíquota.xlsx'), sheet_name='Planilha1')
+    return _aliquota_base
+
+
+# Expose as module-level properties via a simple accessor pattern.
+# All existing code using `r.xxx`, `uf_base.xxx`, `aliquota_base.xxx` will
+# be updated below to use the accessor functions.
+
 
 state_capitals = {
     'AC':    'Rio Branco',     'ACRE':                    'Rio Branco',
@@ -79,9 +115,6 @@ if getattr(sys, 'frozen', False):
 else:
     # Running as script
     _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-
-uf_base = pd.read_excel(os.path.join(_SCRIPT_DIR, 'Complementares.xlsx'), sheet_name='Plan1')
-aliquota_base = pd.read_excel(os.path.join(_SCRIPT_DIR, 'Alíquota.xlsx'), sheet_name='Planilha1')
 
 
 def cte_list(start_date, final_date, folderpath, cte_folder, root):
@@ -194,7 +227,7 @@ def cte_list(start_date, final_date, folderpath, cte_folder, root):
         api_url = f'https://transportebiologico.com.br/api/public/service/cte-emission?initialDate={start_date_iso}&finalDate={end_date_iso}'
         
         # Combine both headers (xtoken for public routes and authorization for auth)
-        combined_headers = {**r.headers, **r.auth}
+        combined_headers = {**_get_r().headers, **_get_r().auth}
         response = requests.get(api_url, headers=combined_headers)
         response.raise_for_status()
         
@@ -367,10 +400,10 @@ def cte_list(start_date, final_date, folderpath, cte_folder, root):
         cnpj_destinatario = get_address_cnpj_from_list(destination_addresses)
         
         # uf_base lookup expects abbreviations in 'Estado' column
-        uf_rem = uf_base.loc[uf_base['Estado'] == uf1, 'UF'].values.item()
-        uf_dest = uf_base.loc[uf_base['Estado'] == uf2, 'UF'].values.item()
-        icms_obs = uf_base.loc[uf_base['Estado'] == uf_rem, 'Info'].values.item()
-        aliq = aliquota_base.loc[aliquota_base['UF'] == uf_rem, uf_dest].values.item()
+        uf_rem = _get_uf_base().loc[_get_uf_base()['Estado'] == uf1, 'UF'].values.item()
+        uf_dest = _get_uf_base().loc[_get_uf_base()['Estado'] == uf2, 'UF'].values.item()
+        icms_obs = _get_uf_base().loc[_get_uf_base()['Estado'] == uf_rem, 'Info'].values.item()
+        aliq = _get_aliquota_base().loc[_get_aliquota_base()['UF'] == uf_rem, uf_dest].values.item()
         obs_text = f'Protocolo {protocol} - {icms_obs}'
         aliq_text = float(aliq) * float(valor) * 0.008
         aliq_text = "{:0.2f}".format(aliq_text)
@@ -416,7 +449,7 @@ def cte_list(start_date, final_date, folderpath, cte_folder, root):
             ]
         }
         
-        r.request_private(
+        _get_r().request_private(
             link="https://transportebiologico.com.br/api/uploads/cte-loglife/json",
             request_type="post",
             payload=payload,
@@ -439,7 +472,7 @@ def cte_list(start_date, final_date, folderpath, cte_folder, root):
 
         while True:
             try:
-                r.post_file("https://transportebiologico.com.br/api/pdf",
+                _get_r().post_file("https://transportebiologico.com.br/api/pdf",
                             f'{cte_folder_path}\\{cte_file}',
                             upload_type="CTE LOGLIFE",
                             file_format="application/pdf",
@@ -449,7 +482,7 @@ def cte_list(start_date, final_date, folderpath, cte_folder, root):
                 time.sleep(0.5)
                 continue
 
-        r.post_file('https://transportebiologico.com.br/api/pdf/associate',
+        _get_r().post_file('https://transportebiologico.com.br/api/pdf/associate',
                     csv_associate,
                     upload_type="CTE LOGLIFE")
 
@@ -636,7 +669,7 @@ def cte_complimentary(start_date, final_date, cte_comp_path, cte_folder, root, u
 
     print("Requisitando relatório de faturamento")
 
-    services_billing = r.request_private(
+    services_billing = _get_r().request_private(
         link='https://transportebiologico.com.br/api/report/billing/data',
         request_type='post',
         payload=pl,
@@ -645,9 +678,9 @@ def cte_complimentary(start_date, final_date, cte_comp_path, cte_folder, root, u
 
     print("Requisitando tabelas principais")
 
-    address = r.request_public('https://transportebiologico.com.br/api/public/address')
-    services_ongoing = r.request_public('https://transportebiologico.com.br/api/public/service')
-    services_finalized = r.request_public(
+    address = _get_r().request_public('https://transportebiologico.com.br/api/public/address')
+    services_ongoing = _get_r().request_public('https://transportebiologico.com.br/api/public/service')
+    services_finalized = _get_r().request_public(
         link=f'https://transportebiologico.com.br/api/public/service/finalized/?startFilter={di}&endFilter={df}',
         request_type='post'
     )
@@ -656,7 +689,7 @@ def cte_complimentary(start_date, final_date, cte_comp_path, cte_folder, root, u
 
     sv = sv[sv['is_business'] == False]
 
-    # provider = r.request_private('https://transportebiologico.com.br/api/provider')  # FORNECEDOR DE GELO SECO
+    # provider = _get_r().request_private('https://transportebiologico.com.br/api/provider')  # FORNECEDOR DE GELO SECO
 
     df_dt += dt.timedelta(days=1)
     sv.drop(sv[sv['customerIDService.emission_type'] == 'NF'].index, inplace=True)
@@ -878,10 +911,10 @@ def cte_complimentary(start_date, final_date, cte_comp_path, cte_folder, root, u
         uf2 = address.loc[address['id'] == destination_add[0], 'state'].values.item()
         # cnpj_remetente = get_address_cnpj(source_add)
         # cnpj_destinatario = get_address_cnpj(destination_add)
-        uf_rem = uf_base.loc[uf_base['Estado'] == uf1, 'UF'].values.item()
-        uf_dest = uf_base.loc[uf_base['Estado'] == uf2, 'UF'].values.item()
-        icms_obs = uf_base.loc[uf_base['Estado'] == uf_rem, 'Info'].values.item()
-        aliq = aliquota_base.loc[aliquota_base['UF'] == uf_rem, uf_dest].values.item()
+        uf_rem = _get_uf_base().loc[_get_uf_base()['Estado'] == uf1, 'UF'].values.item()
+        uf_dest = _get_uf_base().loc[_get_uf_base()['Estado'] == uf2, 'UF'].values.item()
+        icms_obs = _get_uf_base().loc[_get_uf_base()['Estado'] == uf_rem, 'Info'].values.item()
+        aliq = _get_aliquota_base().loc[_get_aliquota_base()['UF'] == uf_rem, uf_dest].values.item()
         cte = sv.loc[sv['protocol'] == protocol, 'cte_loglife'].values.item()
         obs_text = f'Protocolo {protocol} - {icms_obs}'
         aliq_text = float(aliq) * float(valor) * 0.008
@@ -917,7 +950,7 @@ def cte_complimentary(start_date, final_date, cte_comp_path, cte_folder, root, u
             ]
         }
         
-        r.request_private(
+        _get_r().request_private(
             link="https://transportebiologico.com.br/api/uploads/cte-complementary/json",
             request_type="post",
             payload=payload,
@@ -939,7 +972,7 @@ def cte_complimentary(start_date, final_date, cte_comp_path, cte_folder, root, u
         
         while True:
             try:
-                r.post_file("https://transportebiologico.com.br/api/pdf",
+                _get_r().post_file("https://transportebiologico.com.br/api/pdf",
                                               f'{cte_folder_path}\\{cte_file}',
                                               upload_type="CTE COMPLEMENTAR",
                                               file_format="application/pdf",
@@ -949,7 +982,7 @@ def cte_complimentary(start_date, final_date, cte_comp_path, cte_folder, root, u
                 time.sleep(0.5)
                 continue
 
-        r.post_file('https://transportebiologico.com.br/api/pdf/associate',
+        _get_r().post_file('https://transportebiologico.com.br/api/pdf/associate',
                                      csv_associate,
                                      upload_type="CTE COMPLEMENTAR")
 
@@ -1126,7 +1159,7 @@ def cte_unique(cal_date, cte_path, cte_folder_path, cte_type, cte_s, volumes, ro
         try:
             response = requests.get(
                 f'https://transportebiologico.com.br/api/public/service/cte-emission/{protocol}',
-                headers={**r.headers, **r.auth}
+                headers={**_get_r().headers, **_get_r().auth}
             )
             response.raise_for_status()
             data = response.json()
@@ -1210,22 +1243,22 @@ def cte_unique(cal_date, cte_path, cte_folder_path, cte_type, cte_s, volumes, ro
             uf2 = ''
         
         try:
-            uf_rem = uf_base.loc[uf_base['Estado'] == uf1, 'UF'].values.item()
+            uf_rem = _get_uf_base().loc[_get_uf_base()['Estado'] == uf1, 'UF'].values.item()
         except ValueError:
             uf_rem = uf1
         
         try:
-            uf_dest = uf_base.loc[uf_base['Estado'] == uf2, 'UF'].values.item()
+            uf_dest = _get_uf_base().loc[_get_uf_base()['Estado'] == uf2, 'UF'].values.item()
         except ValueError:
             uf_dest = uf2
         
         try:
-            icms_obs = uf_base.loc[uf_base['Estado'] == uf_rem, 'Info'].values.item()
+            icms_obs = _get_uf_base().loc[_get_uf_base()['Estado'] == uf_rem, 'Info'].values.item()
         except ValueError:
             icms_obs = ''
         
         try:
-            aliq = aliquota_base.loc[aliquota_base['UF'] == uf_rem, uf_dest].values.item()
+            aliq = _get_aliquota_base().loc[_get_aliquota_base()['UF'] == uf_rem, uf_dest].values.item()
         except ValueError:
             aliq = "0"
         
@@ -1331,7 +1364,7 @@ def cte_unique(cal_date, cte_path, cte_folder_path, cte_type, cte_s, volumes, ro
             }
         
 
-        r.request_private(
+        _get_r().request_private(
             link="https://transportebiologico.com.br/api/uploads/cte-loglife/json",
             request_type="post",
             payload=payload,
@@ -1353,7 +1386,7 @@ def cte_unique(cal_date, cte_path, cte_folder_path, cte_type, cte_s, volumes, ro
         csv_report.to_csv(csv_file, index=False)
 
         if cte_type == 0:
-            r.post_file('https://transportebiologico.com.br/api/uploads/cte-loglife', csv_file)
+            _get_r().post_file('https://transportebiologico.com.br/api/uploads/cte-loglife', csv_file)
 
         associate = pd.DataFrame({
             'Protocolo': [int(protocol)],
@@ -1364,7 +1397,7 @@ def cte_unique(cal_date, cte_path, cte_folder_path, cte_type, cte_s, volumes, ro
 
         while True:
             try:
-                r.post_file("https://transportebiologico.com.br/api/pdf",
+                _get_r().post_file("https://transportebiologico.com.br/api/pdf",
                             f'{cte_folder_path}\\{cte_file}',
                             upload_type="CTE LOGLIFE",
                             file_format="application/pdf",
@@ -1374,7 +1407,7 @@ def cte_unique(cal_date, cte_path, cte_folder_path, cte_type, cte_s, volumes, ro
                 time.sleep(0.5)
                 continue
 
-        r.post_file('https://transportebiologico.com.br/api/pdf/associate',
+        _get_r().post_file('https://transportebiologico.com.br/api/pdf/associate',
                     csv_associate,
                     upload_type="CTE LOGLIFE")
 
@@ -1464,7 +1497,7 @@ def cte_symbolic(start_date, final_date, folderpath, cte_folder, root):
     try:
         api_url = f'https://transportebiologico.com.br/api/public/service/cte-emission-symbolic?initialDate={start_date_iso}&finalDate={end_date_iso}'
         
-        combined_headers = {**r.headers, **r.auth}
+        combined_headers = {**_get_r().headers, **_get_r().auth}
         response = requests.get(api_url, headers=combined_headers)
         response.raise_for_status()
         
@@ -1584,22 +1617,22 @@ def cte_symbolic(start_date, final_date, folderpath, cte_folder, root):
         budget_price = get_requested_service_field(row, 'price') or get_budget_field(row, 'price') or 0
         
         try:
-            uf_rem = uf_base.loc[uf_base['Estado'] == uf1, 'UF'].values.item()
+            uf_rem = _get_uf_base().loc[_get_uf_base()['Estado'] == uf1, 'UF'].values.item()
         except ValueError:
             uf_rem = uf1
         
         try:
-            uf_dest = uf_base.loc[uf_base['Estado'] == uf2, 'UF'].values.item()
+            uf_dest = _get_uf_base().loc[_get_uf_base()['Estado'] == uf2, 'UF'].values.item()
         except ValueError:
             uf_dest = uf2
         
         try:
-            icms_obs = uf_base.loc[uf_base['Estado'] == uf_rem, 'Info'].values.item()
+            icms_obs = _get_uf_base().loc[_get_uf_base()['Estado'] == uf_rem, 'Info'].values.item()
         except ValueError:
             icms_obs = ''
         
         try:
-            aliq = aliquota_base.loc[aliquota_base['UF'] == uf_rem, uf_dest].values.item()
+            aliq = _get_aliquota_base().loc[_get_aliquota_base()['UF'] == uf_rem, uf_dest].values.item()
         except ValueError:
             aliq = "0"
         
@@ -1653,7 +1686,7 @@ def cte_symbolic(start_date, final_date, folderpath, cte_folder, root):
         }
         
         # Send JSON payload to API
-        r.request_private(
+        _get_r().request_private(
             link="https://transportebiologico.com.br/api/uploads/cte-loglife/json",
             request_type="post",
             payload=payload,
@@ -1674,7 +1707,7 @@ def cte_symbolic(start_date, final_date, folderpath, cte_folder, root):
         # Upload PDF file
         while True:
             try:
-                r.post_file("https://transportebiologico.com.br/api/pdf",
+                _get_r().post_file("https://transportebiologico.com.br/api/pdf",
                             f'{cte_folder_path}\\{cte_file}',
                             upload_type="CTE LOGLIFE",
                             file_format="application/pdf",
@@ -1685,7 +1718,7 @@ def cte_symbolic(start_date, final_date, folderpath, cte_folder, root):
                 continue
 
         # Associate PDF with protocol
-        r.post_file('https://transportebiologico.com.br/api/pdf/associate',
+        _get_r().post_file('https://transportebiologico.com.br/api/pdf/associate',
                     csv_associate,
                     upload_type="CTE LOGLIFE")
 
@@ -1834,7 +1867,7 @@ def cte_list_unified(start_date, final_date, folderpath, cte_folder, root):
     try:
         api_url = f'https://transportebiologico.com.br/api/public/service/cte-emission-unified?initialDate={start_date_iso}&finalDate={end_date_iso}'
         
-        combined_headers = {**r.headers, **r.auth}
+        combined_headers = {**_get_r().headers, **_get_r().auth}
         response = requests.get(api_url, headers=combined_headers)
         response.raise_for_status()
         
@@ -1963,22 +1996,22 @@ def cte_list_unified(start_date, final_date, folderpath, cte_folder, root):
         budget_price = get_requested_service_field(row, 'price') or get_budget_field(row, 'price') or 0
         
         try:
-            uf_rem = uf_base.loc[uf_base['Estado'] == uf1, 'UF'].values.item()
+            uf_rem = _get_uf_base().loc[_get_uf_base()['Estado'] == uf1, 'UF'].values.item()
         except ValueError:
             uf_rem = uf1
         
         try:
-            uf_dest = uf_base.loc[uf_base['Estado'] == uf2, 'UF'].values.item()
+            uf_dest = _get_uf_base().loc[_get_uf_base()['Estado'] == uf2, 'UF'].values.item()
         except ValueError:
             uf_dest = uf2
         
         try:
-            icms_obs = uf_base.loc[uf_base['Estado'] == uf_rem, 'Info'].values.item()
+            icms_obs = _get_uf_base().loc[_get_uf_base()['Estado'] == uf_rem, 'Info'].values.item()
         except ValueError:
             icms_obs = ''
         
         try:
-            aliq = aliquota_base.loc[aliquota_base['UF'] == uf_rem, uf_dest].values.item()
+            aliq = _get_aliquota_base().loc[_get_aliquota_base()['UF'] == uf_rem, uf_dest].values.item()
         except ValueError:
             aliq = "0"
         
@@ -2070,7 +2103,7 @@ def cte_list_unified(start_date, final_date, folderpath, cte_folder, root):
             payload["data"][0]["symbolic"] = True
         
         # Send JSON payload to API
-        r.request_private(
+        _get_r().request_private(
             link="https://transportebiologico.com.br/api/uploads/cte-loglife/json",
             request_type="post",
             payload=payload,
@@ -2091,7 +2124,7 @@ def cte_list_unified(start_date, final_date, folderpath, cte_folder, root):
         # Upload PDF file
         while True:
             try:
-                r.post_file("https://transportebiologico.com.br/api/pdf",
+                _get_r().post_file("https://transportebiologico.com.br/api/pdf",
                             f'{cte_folder_path}\\{cte_file}',
                             upload_type="CTE LOGLIFE",
                             file_format="application/pdf",
@@ -2102,7 +2135,7 @@ def cte_list_unified(start_date, final_date, folderpath, cte_folder, root):
                 continue
 
         # Associate PDF with protocol
-        r.post_file('https://transportebiologico.com.br/api/pdf/associate',
+        _get_r().post_file('https://transportebiologico.com.br/api/pdf/associate',
                     csv_associate,
                     upload_type="CTE LOGLIFE")
 
@@ -2251,10 +2284,10 @@ def cte_list_grouped(start_date, final_date, folderpath, cte_folder, root):
     di_formatted = dt.datetime.strftime(di_temp, '%Y-%m-%d')
     df_formatted = dt.datetime.strftime(df_temp, '%Y-%m-%d')
 
-    address = r.request_public('https://transportebiologico.com.br/api/public/address')
-    collector = r.request_public('https://transportebiologico.com.br/api/public/collector')
-    services_ongoing = r.request_public('https://transportebiologico.com.br/api/public/service')
-    services_finalized = r.request_public(
+    address = _get_r().request_public('https://transportebiologico.com.br/api/public/address')
+    collector = _get_r().request_public('https://transportebiologico.com.br/api/public/collector')
+    services_ongoing = _get_r().request_public('https://transportebiologico.com.br/api/public/service')
+    services_finalized = _get_r().request_public(
         f'https://transportebiologico.com.br/api/public/service/finalized/?startFilter={di}&endFilter={df}',
         'post'
     )
@@ -2271,7 +2304,7 @@ def cte_list_grouped(start_date, final_date, folderpath, cte_folder, root):
         "is_collector": False
     }
 
-    services_billing = r.request_private(
+    services_billing = _get_r().request_private(
         link='https://transportebiologico.com.br/api/report/billing',
         request_type='post',
         payload=pl
@@ -2454,10 +2487,10 @@ def cte_list_grouped(start_date, final_date, folderpath, cte_folder, root):
         uf2 = address.loc[address['id'] == destination_add[0], 'state'].item()
         cnpj_remetente = get_address_cnpj(source_add)
         cnpj_destinatario = get_address_cnpj(destination_add)
-        uf_rem = uf_base.loc[uf_base['Estado'] == uf1, 'UF'].values.item()
-        uf_dest = uf_base.loc[uf_base['Estado'] == uf2, 'UF'].values.item()
-        icms_obs = uf_base.loc[uf_base['Estado'] == uf_rem, 'Info'].values.item()
-        aliq = aliquota_base.loc[aliquota_base['UF'] == uf_rem, uf_dest].values.item()
+        uf_rem = _get_uf_base().loc[_get_uf_base()['Estado'] == uf1, 'UF'].values.item()
+        uf_dest = _get_uf_base().loc[_get_uf_base()['Estado'] == uf2, 'UF'].values.item()
+        icms_obs = _get_uf_base().loc[_get_uf_base()['Estado'] == uf_rem, 'Info'].values.item()
+        aliq = _get_aliquota_base().loc[_get_aliquota_base()['UF'] == uf_rem, uf_dest].values.item()
         obs_text = f'Protocolos {prot_list} - {icms_obs}'
         aliq_text = float(aliq) * float(valor) * 0.008
         aliq_text = "{:0.2f}".format(aliq_text)
@@ -2520,11 +2553,11 @@ def cte_list_grouped(start_date, final_date, folderpath, cte_folder, root):
 
         cte_csv.to_csv(csv_associate, index=False, encoding='utf-8')
 
-        r.post_file('https://transportebiologico.com.br/api/uploads/cte-loglife', csv_file)
+        _get_r().post_file('https://transportebiologico.com.br/api/uploads/cte-loglife', csv_file)
 
         while True:
             try:
-                r.post_file("https://transportebiologico.com.br/api/pdf",
+                _get_r().post_file("https://transportebiologico.com.br/api/pdf",
                             f'{cte_folder_path}\\{cte_file}',
                             upload_type="CTE LOGLIFE",
                             file_format="application/pdf",
@@ -2534,7 +2567,7 @@ def cte_list_grouped(start_date, final_date, folderpath, cte_folder, root):
                 time.sleep(0.5)
                 continue
 
-        r.post_file('https://transportebiologico.com.br/api/pdf/associate',
+        _get_r().post_file('https://transportebiologico.com.br/api/pdf/associate',
                     csv_associate,
                     upload_type="CTE LOGLIFE")
 
@@ -2564,8 +2597,8 @@ def clear_cte_number(start_date, final_date, folderpath, root):
     di = dt.datetime.strftime(di_temp, '%d/%m/%Y')
     df = dt.datetime.strftime(df_temp, '%d/%m/%Y')
 
-    services_ongoing = r.request_public('https://transportebiologico.com.br/api/public/service')
-    services_finalized = r.request_public(
+    services_ongoing = _get_r().request_public('https://transportebiologico.com.br/api/public/service')
+    services_finalized = _get_r().request_public(
         f'https://transportebiologico.com.br/api/public/service/finalized/?startFilter={di}&endFilter={df}',
         'post'
     )
@@ -2605,7 +2638,7 @@ def clear_cte_number(start_date, final_date, folderpath, root):
 
         csv_report.to_csv(clear_cte_file, index=False, encoding='utf-8')
 
-        r.post_file('https://transportebiologico.com.br/api/uploads/cte-loglife', clear_cte_file)
+        _get_r().post_file('https://transportebiologico.com.br/api/uploads/cte-loglife', clear_cte_file)
 
         os.remove(clear_cte_file)
 
@@ -2643,7 +2676,7 @@ def cte_cancel_batch(start_date, final_date, root):
 
     # Query API for cancelled services
     try:
-        df = r.request_public(
+        df = _get_r().request_public(
             link=f'https://transportebiologico.com.br/api/public/service/cancelled-unsuccessful?initialDate={di_formatted}&finalDate={df_formatted}'
         )
 
@@ -2729,7 +2762,7 @@ def cte_cancel_batch(start_date, final_date, root):
                             }
                         ]
                     }
-                    r.request_private(
+                    _get_r().request_private(
                         link="https://transportebiologico.com.br/api/uploads/cte-loglife/json",
                         request_type="post",
                         payload=payload,
@@ -2768,7 +2801,7 @@ def cte_cancel_batch(start_date, final_date, root):
                             }
                         ]
                     }
-                    r.request_private(
+                    _get_r().request_private(
                         link="https://transportebiologico.com.br/api/uploads/cte-complementary/json",
                         request_type="post",
                         payload=payload,
@@ -2868,7 +2901,7 @@ def cancelar_avulso_cte(numero_cte, protocolo, root, cte_type="loglife"):
             cte_type_label = "Loglife"
         
         # Update API after successful cancellation
-        r.request_private(
+        _get_r().request_private(
             link=api_endpoint,
             request_type="post",
             payload=payload,
@@ -2947,7 +2980,7 @@ def validar_e_cancelar_ctes(relatorio_bsoft_path, root):
         
         # Request CTes from API with mandatory date parameters
         print(f"🔍 Consultando CT-es na API (período: {di_formatted} a {df_formatted})...")
-        df_api = r.request_public(
+        df_api = _get_r().request_public(
             f'https://transportebiologico.com.br/api/public/service/with-cte?initialDate={di_formatted}&finalDate={df_formatted}'
         )
 
@@ -3192,7 +3225,7 @@ def comparar_gnre_target(relatorio_bsoft_path, relatorio_target_path, root):
                 
                 # Get aliquot from aliquota_base
                 try:
-                    aliq = aliquota_base.loc[aliquota_base['UF'] == uf_rem, uf_dest].values[0]
+                    aliq = _get_aliquota_base().loc[_get_aliquota_base()['UF'] == uf_rem, uf_dest].values[0]
                     aliq = float(aliq) * 0.8
                 except (IndexError, KeyError, ValueError):
                     print(f"⚠️ Alíquota não encontrada para {uf_rem} -> {uf_dest} (CT-e {cte_num})")
@@ -3338,7 +3371,7 @@ def processar_gnre_target(relatorio_target_path, root):
                 # Get cost center from API
                 try:
                     print(f"🔍 Consultando cost_center para CT-e {cte_number}")
-                    service_data = r.request_public(
+                    service_data = _get_r().request_public(
                         f'https://transportebiologico.com.br/api/public/service/by-cte?cteNumber={cte_number}'
                     )
 

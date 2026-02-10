@@ -146,6 +146,18 @@ DEFAULT_MESSAGES = {
 # HELPER FUNCTIONS
 # =============================================================================
 
+def validate_numeric_input(value_if_allowed):
+    """Validate that input is numeric (digits only) or empty."""
+    if value_if_allowed == '':
+        return True
+    return value_if_allowed.isdigit()
+
+
+def confirm_destructive_action(title, message):
+    """Show a confirmation dialog for destructive actions. Returns True if confirmed."""
+    return messagebox.askyesno(title, message, icon='warning')
+
+
 def read_config_file(filename, default_value):
     """Read configuration file and return content or default value."""
     try:
@@ -506,15 +518,28 @@ def check_for_updates_on_startup(parent_window):
 # APPLICATION SETUP
 # =============================================================================
 
+# Enable DPI awareness on Windows for crisp rendering on high-DPI displays
+try:
+    ctypes.windll.shcore.SetProcessDpiAwareness(1)  # PROCESS_SYSTEM_DPI_AWARE
+except (AttributeError, OSError):
+    try:
+        ctypes.windll.user32.SetProcessDPIAware()
+    except (AttributeError, OSError):
+        pass  # Not on Windows or older version, skip
+
 # Create main window
 root = Tk()
 root.title(APP_TITLE)
 root.geometry(WINDOW_SIZE)
-root.resizable(False, False)
+root.resizable(True, True)
+root.minsize(520, 400)
 try:
     root.iconbitmap(APP_ICON)
 except:
     pass  # Icon file not found, continue without it
+
+# Register input validation commands
+vcmd_numeric = (root.register(validate_numeric_input), '%P')
 
 # Create menu bar
 menubar = Menu(root)
@@ -525,7 +550,8 @@ help_menu = Menu(menubar, tearoff=0)
 menubar.add_cascade(label="Ajuda", menu=help_menu)
 help_menu.add_command(
     label="Verificar Atualizações",
-    command=lambda: check_for_updates_ui(root, show_up_to_date=True)
+    command=lambda: check_for_updates_ui(root, show_up_to_date=True),
+    accelerator="Ctrl+U"
 )
 help_menu.add_separator()
 help_menu.add_command(
@@ -535,8 +561,18 @@ help_menu.add_command(
         f"{APP_TITLE}\nVersão {APP_VERSION}\n\n"
         "Automação de emissão de CTe's\n"
         "Desenvolvido com BotCity Framework"
-    )
+    ),
+    accelerator="F1"
 )
+
+# Bind keyboard shortcuts
+root.bind_all('<Control-u>', lambda e: check_for_updates_ui(root, show_up_to_date=True))
+root.bind_all('<F1>', lambda e: messagebox.showinfo(
+    f"Sobre {APP_TITLE}",
+    f"{APP_TITLE}\nVersão {APP_VERSION}\n\n"
+    "Automação de emissão de CTe's\n"
+    "Desenvolvido com BotCity Framework"
+))
 
 # Initialize threading objects
 thread_0 = Start(root)
@@ -567,13 +603,6 @@ tabs.add(tab3, text='🔧 Utilitários')
 tabs.add(tab5, text='❌ Cancelamento')
 
 tabs.pack(expand=1, fill="both", padx=PADDING_SMALL, pady=PADDING_SMALL)
-
-# Create sub-frames for tab2 (CTe Complementar)
-tab2_frame = Frame(tab2, pady=PADDING_LARGE)
-tab2_frame.pack(fill='x', padx=PADDING_MEDIUM)
-
-tab2_frame2 = Frame(tab2)
-tab2_frame2.pack(fill='x', padx=PADDING_MEDIUM, pady=PADDING_MEDIUM)
 
 # Frame for tab4 (Arquivos)
 tab4_frame = Frame(tab4, pady=PADDING_MEDIUM)
@@ -608,8 +637,8 @@ cal1_uf = DateEntry(tab2_1, **cal_config)
 cal2_uf = DateEntry(tab2_1, **cal_config)
 
 # Tab2 - CTe Complementar
-cal1 = DateEntry(tab2_frame, **cal_config)
-cal2 = DateEntry(tab2_frame, **cal_config)
+cal1 = DateEntry(tab2, **cal_config)
+cal2 = DateEntry(tab2, **cal_config)
 
 # Tab5 - Cancelamento
 cal1_cancel = DateEntry(tab5, **cal_config)
@@ -645,30 +674,30 @@ relatorio_bsoft.set(read_config_file(CONFIG_FILES['relatorio_bsoft'], DEFAULT_ME
 relatorio_target = StringVar()
 relatorio_target.set(read_config_file(CONFIG_FILES['relatorio_target'], DEFAULT_MESSAGES['relatorio_target']))
 
-# Create labels for file paths with better styling
-label_style = {'width': 25, 'wraplength': 180, 'relief': 'sunken', 'padding': PADDING_SMALL}
+# Create readonly Entry widgets for file paths (scrollable, full path visible)
+path_entry_style = {'font': ('Segoe UI', 8), 'state': 'readonly'}
 
-folder_Label = ttk.Label(tab4_frame, text=folderpath.get(), **label_style)
-folder_Label.grid(column=1, row=0, sticky="EW", padx=PADDING_LARGE, pady=PADDING_MEDIUM)
+folder_Entry = ttk.Entry(tab4_frame, textvariable=folderpath, **path_entry_style)
+folder_Entry.grid(column=1, row=0, sticky="EW", padx=PADDING_LARGE, pady=PADDING_MEDIUM)
 
-folder_Label2 = ttk.Label(tab4_frame, text=folderpath2.get(), **label_style)
-folder_Label2.grid(column=1, row=1, sticky="EW", padx=PADDING_LARGE, pady=PADDING_MEDIUM)
+folder_Entry2 = ttk.Entry(tab4_frame, textvariable=folderpath2, **path_entry_style)
+folder_Entry2.grid(column=1, row=1, sticky="EW", padx=PADDING_LARGE, pady=PADDING_MEDIUM)
 
-cte_Folder_Label = ttk.Label(tab4_frame, text=cte_folder.get(), **label_style)
-cte_Folder_Label.grid(column=1, row=2, sticky="EW", padx=PADDING_LARGE, pady=PADDING_MEDIUM)
+cte_Folder_Entry = ttk.Entry(tab4_frame, textvariable=cte_folder, **path_entry_style)
+cte_Folder_Entry.grid(column=1, row=2, sticky="EW", padx=PADDING_LARGE, pady=PADDING_MEDIUM)
 
-relatorio_bsoft_Label = ttk.Label(tab4_frame, text=relatorio_bsoft.get(), **label_style)
-relatorio_bsoft_Label.grid(column=1, row=3, sticky="EW", padx=PADDING_LARGE, pady=PADDING_MEDIUM)
+relatorio_bsoft_Entry = ttk.Entry(tab4_frame, textvariable=relatorio_bsoft, **path_entry_style)
+relatorio_bsoft_Entry.grid(column=1, row=3, sticky="EW", padx=PADDING_LARGE, pady=PADDING_MEDIUM)
 
-relatorio_target_Label = ttk.Label(tab4_frame, text=relatorio_target.get(), **label_style)
-relatorio_target_Label.grid(column=1, row=4, sticky="EW", padx=PADDING_LARGE, pady=PADDING_MEDIUM)
+relatorio_target_Entry = ttk.Entry(tab4_frame, textvariable=relatorio_target, **path_entry_style)
+relatorio_target_Entry.grid(column=1, row=4, sticky="EW", padx=PADDING_LARGE, pady=PADDING_MEDIUM)
 
-# Initialize Browse objects
-browse1 = Browse(cte_Folder_Label)
-browse2 = Browse(folder_Label)
-browse3 = Browse(folder_Label2)
-browse4 = Browse(relatorio_bsoft_Label)
-browse5 = Browse(relatorio_target_Label)
+# Initialize Browse objects (linked to StringVars for automatic Entry updates)
+browse1 = Browse(cte_folder)
+browse2 = Browse(folderpath)
+browse3 = Browse(folderpath2)
+browse4 = Browse(relatorio_bsoft)
+browse5 = Browse(relatorio_target)
 
 # =============================================================================
 # ACTION BUTTONS
@@ -685,7 +714,8 @@ ttk.Button(tab1,
                                                  cal_f.get_date(),
                                                  folderpath.get(),
                                                  cte_folder.get(),
-                                                 root]
+                                                 root],
+               status_label=status_label1
            )).grid(column=2, row=0, padx=PADDING_MEDIUM, pady=PADDING_MEDIUM, ipady=10, sticky="EW")
 
 ttk.Button(tab1,
@@ -695,18 +725,25 @@ ttk.Button(tab1,
                                                          cal_f.get_date(),
                                                          folderpath.get(),
                                                          cte_folder.get(),
-                                                         root]
+                                                         root],
+               status_label=status_label1
            )).grid(column=2, row=1, padx=PADDING_MEDIUM, pady=PADDING_MEDIUM, ipady=10, sticky="EW")
 
-# --- TAB 3: Utilitários Buttons ---
+# --- TAB 3: Utilitários Buttons (grid layout) ---
 ttk.Button(tab3,
            text="🧹 Limpar CTe simbólico",
-           command=lambda: thread_0.start_thread(
-               clear_cte_number, progressbar3, arguments=[cal.get_date(),
-                                                          cal_f.get_date(),
-                                                          folderpath.get(),
-                                                          root]
-           )).pack(pady=PADDING_LARGE, padx=PADDING_XL, fill='x', ipady=PADDING_SMALL)
+           command=lambda: (
+               confirm_destructive_action(
+                   "Confirmar Limpeza",
+                   "Tem certeza que deseja limpar os CTe's simbólicos?\n\nEsta ação não pode ser desfeita."
+               ) and thread_0.start_thread(
+                   clear_cte_number, progressbar3, arguments=[cal.get_date(),
+                                                              cal_f.get_date(),
+                                                              folderpath.get(),
+                                                              root],
+                   status_label=status_label3
+               )
+           )).grid(column=0, row=0, pady=PADDING_MEDIUM, padx=PADDING_XL, ipady=10, sticky='EW')
 
 ttk.Button(tab3,
            text="🔖 Emitir CTe simbólico",
@@ -715,30 +752,39 @@ ttk.Button(tab3,
                                                       cal_f.get_date(),
                                                       folderpath.get(),
                                                       cte_folder.get(),
-                                                      root]
-           )).pack(pady=PADDING_LARGE, padx=PADDING_XL, fill='x', ipady=PADDING_SMALL)
+                                                      root],
+               status_label=status_label3
+           )).grid(column=0, row=1, pady=PADDING_MEDIUM, padx=PADDING_XL, ipady=10, sticky='EW')
 
 ttk.Button(tab3,
            text="✅ Validar e Cancelar CTes (B-soft)",
-           command=lambda: thread_0.start_thread(
-               validar_e_cancelar_ctes, progressbar3, arguments=[relatorio_bsoft.get(),
-                                                                  root]
-           )).pack(pady=PADDING_LARGE, padx=PADDING_XL, fill='x', ipady=PADDING_SMALL)
+           command=lambda: (
+               confirm_destructive_action(
+                   "Confirmar Cancelamento",
+                   "Tem certeza que deseja validar e cancelar os CTes?\n\nEsta ação não pode ser desfeita."
+               ) and thread_0.start_thread(
+                   validar_e_cancelar_ctes, progressbar3, arguments=[relatorio_bsoft.get(),
+                                                                      root],
+                   status_label=status_label3
+               )
+           )).grid(column=0, row=2, pady=PADDING_MEDIUM, padx=PADDING_XL, ipady=10, sticky='EW')
 
 ttk.Button(tab3,
            text="📊 Comparar GNRE (B-soft vs Target)",
            command=lambda: thread_0.start_thread(
                comparar_gnre_target, progressbar3, arguments=[relatorio_bsoft.get(),
                                                                relatorio_target.get(),
-                                                               root]
-           )).pack(pady=PADDING_LARGE, padx=PADDING_XL, fill='x', ipady=PADDING_SMALL)
+                                                               root],
+               status_label=status_label3
+           )).grid(column=0, row=3, pady=PADDING_MEDIUM, padx=PADDING_XL, ipady=10, sticky='EW')
 
 ttk.Button(tab3,
            text="💰 Lançar guias de ICMS",
            command=lambda: thread_0.start_thread(
                processar_gnre_target, progressbar3, arguments=[relatorio_target.get(),
-                                                                root]
-           )).pack(pady=PADDING_LARGE, padx=PADDING_XL, fill='x', ipady=PADDING_SMALL)
+                                                                root],
+               status_label=status_label3
+           )).grid(column=0, row=4, pady=PADDING_MEDIUM, padx=PADDING_XL, ipady=10, sticky='EW')
 
 ttk.Button(tab1,
            text="✉️ Emitir",
@@ -749,20 +795,22 @@ ttk.Button(tab1,
                                                    cte_type.get(),
                                                    cte_s.get(),
                                                    volumes.get(),
-                                                   root]
+                                                   root],
+               status_label=status_label1
            )).grid(column=2, row=2, padx=PADDING_MEDIUM, pady=PADDING_MEDIUM, sticky="NSEW")
 
-ttk.Button(tab2_frame,
+ttk.Button(tab2,
            text="✉️ Emitir",
            command=lambda: thread_1.start_thread(
                cte_complimentary, progressbar2, arguments=[cal1.get_date(),
                                                            cal2.get_date(),
                                                            folderpath2.get(),
                                                            cte_folder.get(),
-                                                           root]
+                                                           root],
+               status_label=status_label2
            )).grid(column=2, row=0, rowspan=2, padx=PADDING_MEDIUM, pady=15, ipady=15, sticky="EW")
 
-ttk.Button(tab2_frame2,
+ttk.Button(tab2,
            text="✉️ Emitir Avulso",
            command=lambda: thread_1.start_thread(
                cte_complimentary, progressbar2, arguments=[cal1.get_date(),
@@ -771,8 +819,9 @@ ttk.Button(tab2_frame2,
                                                            cte_folder.get(),
                                                            root,
                                                            True,
-                                                           cte_cs.get()]
-           )).grid(column=2, row=0, padx=PADDING_MEDIUM, pady=PADDING_MEDIUM, sticky="NSEW")
+                                                           cte_cs.get()],
+               status_label=status_label2
+           )).grid(column=2, row=2, padx=PADDING_MEDIUM, pady=PADDING_MEDIUM, sticky="NSEW")
 
 ttk.Button(tab2_1,
            text="🗺️ Emitir CTes por UF",
@@ -781,64 +830,62 @@ ttk.Button(tab2_1,
                                                             cal2_uf.get_date(),
                                                             folderpath.get(),
                                                             cte_folder.get(),
-                                                            root]
+                                                            root],
+               status_label=status_label4
            )).grid(column=2, row=0, rowspan=2, padx=PADDING_MEDIUM, pady=15, ipady=15, sticky="EW")
 
 ttk.Button(tab5,
            text="❌ Cancelar lista de CTe",
-           command=lambda: thread_2.start_thread(
-               cte_cancel_batch, progressbar5, arguments=[cal1_cancel.get_date(),
-                                                          cal2_cancel.get_date(),
-                                                          root]
+           command=lambda: (
+               confirm_destructive_action(
+                   "Confirmar Cancelamento",
+                   "Tem certeza que deseja cancelar a lista de CTes?\n\nEsta ação não pode ser desfeita."
+               ) and thread_2.start_thread(
+                   cte_cancel_batch, progressbar5, arguments=[cal1_cancel.get_date(),
+                                                              cal2_cancel.get_date(),
+                                                              root],
+                   status_label=status_label5
+               )
            )).grid(column=2, row=0, rowspan=2, padx=PADDING_MEDIUM, pady=15, ipady=15, sticky="EW")
 
 ttk.Button(tab5,
            text="❌ Cancelar Avulso",
-           command=lambda: thread_2.start_thread(
-               cancelar_avulso_cte, progressbar5, arguments=[cte_cancel.get(),
-                                                             protocolo_cancel.get(),
-                                                             root]
+           command=lambda: (
+               confirm_destructive_action(
+                   "Confirmar Cancelamento",
+                   f"Tem certeza que deseja cancelar o CTe {cte_cancel.get()}?\n\nEsta ação não pode ser desfeita."
+               ) and thread_2.start_thread(
+                   cancelar_avulso_cte, progressbar5, arguments=[cte_cancel.get(),
+                                                                 protocolo_cancel.get(),
+                                                                 root],
+                   status_label=status_label5
+               )
            )).grid(column=2, row=2, rowspan=2, padx=PADDING_MEDIUM, pady=PADDING_MEDIUM, sticky="NSEW")
 
 # --- TAB 4: Arquivos Buttons ---
 ttk.Button(tab4_frame,
            text="📂 Procurar",
-           command=lambda: browse2.browse_folder(folderpath, 'folderpath.txt', master=tab4_frame,
-                                                 label_config={'wraplength': 180, 'width': 25},
-                                                 grid_config={'column': 1, 'row': 0, 'sticky': "EW", 'padx': PADDING_LARGE,
-                                                              'pady': PADDING_MEDIUM})
+           command=lambda: browse2.browse_folder(folderpath, 'folderpath.txt')
            ).grid(column=2, row=0, padx=PADDING_SMALL, pady=PADDING_SMALL, sticky="EW")
 
 ttk.Button(tab4_frame,
            text="📂 Procurar",
-           command=lambda: browse3.browse_folder(folderpath2, 'folderpath2.txt', master=tab4_frame,
-                                                 label_config={'wraplength': 180, 'width': 25},
-                                                 grid_config={'column': 1, 'row': 1, 'sticky': "EW", 'padx': PADDING_LARGE,
-                                                              'pady': PADDING_MEDIUM})
+           command=lambda: browse3.browse_folder(folderpath2, 'folderpath2.txt')
            ).grid(column=2, row=1, padx=PADDING_SMALL, pady=PADDING_SMALL, sticky="EW")
 
 ttk.Button(tab4_frame,
            text="📂 Procurar",
-           command=lambda: browse1.browse_folder(cte_folder, 'filename.txt', master=tab4_frame,
-                                                 label_config={'wraplength': 180, 'width': 25},
-                                                 grid_config={'column': 1, 'row': 2, 'sticky': "EW", 'padx': PADDING_LARGE,
-                                                              'pady': PADDING_MEDIUM})
+           command=lambda: browse1.browse_folder(cte_folder, 'filename.txt')
            ).grid(column=2, row=2, padx=PADDING_SMALL, pady=PADDING_SMALL, sticky="EW")
 
 ttk.Button(tab4_frame,
            text="📄 Procurar",
-           command=lambda: browse4.browse_files(relatorio_bsoft, 'relatorio_bsoft.txt', master=tab4_frame,
-                                                label_config={'wraplength': 180, 'width': 25},
-                                                grid_config={'column': 1, 'row': 3, 'sticky': "EW", 'padx': PADDING_LARGE,
-                                                             'pady': PADDING_MEDIUM})
+           command=lambda: browse4.browse_files(relatorio_bsoft, 'relatorio_bsoft.txt')
            ).grid(column=2, row=3, padx=PADDING_SMALL, pady=PADDING_SMALL, sticky="EW")
 
 ttk.Button(tab4_frame,
            text="📄 Procurar",
-           command=lambda: browse5.browse_files(relatorio_target, 'relatorio_target.txt', master=tab4_frame,
-                                                label_config={'wraplength': 180, 'width': 25},
-                                                grid_config={'column': 1, 'row': 4, 'sticky': "EW", 'padx': PADDING_LARGE,
-                                                             'pady': PADDING_MEDIUM})
+           command=lambda: browse5.browse_files(relatorio_target, 'relatorio_target.txt')
            ).grid(column=2, row=4, padx=PADDING_SMALL, pady=PADDING_SMALL, sticky="EW")
 
 # =============================================================================
@@ -856,13 +903,13 @@ ttk.Label(tab1, text="📦 Volumes:", font=('Segoe UI', 9)).grid(
     column=2, row=5, padx=PADDING_SMALL, pady=PADDING_MEDIUM, sticky='WE')
 
 # Tab 2 - CTe Complementar Labels
-ttk.Label(tab2_frame, text="📅 Data Inicial:", font=('Segoe UI', 9)).grid(
+ttk.Label(tab2, text="📅 Data inicial:", font=('Segoe UI', 9)).grid(
     column=0, row=0, padx=PADDING_MEDIUM, pady=PADDING_MEDIUM, sticky='WE')
-ttk.Label(tab2_frame, text="📅 Data Final:", font=('Segoe UI', 9)).grid(
+ttk.Label(tab2, text="📅 Data final:", font=('Segoe UI', 9)).grid(
     column=0, row=1, padx=PADDING_MEDIUM, pady=PADDING_MEDIUM, sticky='WE')
 
-ttk.Label(tab2_frame2, text="📦 CTe avulso:", font=('Segoe UI', 9)).grid(
-    column=0, row=0, padx=PADDING_MEDIUM, pady=PADDING_MEDIUM, sticky='WE')
+ttk.Label(tab2, text="📦 CTe avulso:", font=('Segoe UI', 9)).grid(
+    column=0, row=2, padx=PADDING_MEDIUM, pady=PADDING_MEDIUM, sticky='WE')
 
 # Tab 2_1 - CTe por UF Labels
 ttk.Label(tab2_1, text="📅 Data inicial:", font=('Segoe UI', 9)).grid(
@@ -904,22 +951,27 @@ protocolo_cancel = StringVar()
 volumes = StringVar()
 volumes.set('1')  # Default value
 
-# Tab 1 - CTe Entry
-ttk.Entry(tab1, textvariable=cte_s, width=16, font=('Segoe UI', 9)).grid(
+# Tab 1 - CTe Entry (numeric validation on CTe number and volumes)
+ttk.Entry(tab1, textvariable=cte_s, width=16, font=('Segoe UI', 9),
+          validate='key', validatecommand=vcmd_numeric).grid(
     column=1, row=2, padx=PADDING_XL, pady=PADDING_MEDIUM, sticky='EW')
 
-ttk.Entry(tab1, textvariable=volumes, width=8, font=('Segoe UI', 9)).grid(
+ttk.Entry(tab1, textvariable=volumes, width=8, font=('Segoe UI', 9),
+          validate='key', validatecommand=vcmd_numeric).grid(
     column=2, row=5, pady=PADDING_SMALL, padx=PADDING_SMALL, sticky='W')
 
-# Tab 2 - CTe Complementar Entry
-ttk.Entry(tab2_frame2, textvariable=cte_cs, width=16, font=('Segoe UI', 9)).grid(
-    column=1, row=0, padx=PADDING_XL, pady=PADDING_MEDIUM, sticky='EW')
-
-# Tab 5 - Cancelamento Entries
-ttk.Entry(tab5, textvariable=cte_cancel, width=16, font=('Segoe UI', 9)).grid(
+# Tab 2 - CTe Complementar Entry (numeric validation)
+ttk.Entry(tab2, textvariable=cte_cs, width=16, font=('Segoe UI', 9),
+          validate='key', validatecommand=vcmd_numeric).grid(
     column=1, row=2, padx=PADDING_XL, pady=PADDING_MEDIUM, sticky='EW')
 
-ttk.Entry(tab5, textvariable=protocolo_cancel, width=16, font=('Segoe UI', 9)).grid(
+# Tab 5 - Cancelamento Entries (numeric validation)
+ttk.Entry(tab5, textvariable=cte_cancel, width=16, font=('Segoe UI', 9),
+          validate='key', validatecommand=vcmd_numeric).grid(
+    column=1, row=2, padx=PADDING_XL, pady=PADDING_MEDIUM, sticky='EW')
+
+ttk.Entry(tab5, textvariable=protocolo_cancel, width=16, font=('Segoe UI', 9),
+          validate='key', validatecommand=vcmd_numeric).grid(
     column=1, row=3, padx=PADDING_XL, pady=PADDING_MEDIUM, sticky='EW')
 
 # =============================================================================
@@ -938,21 +990,31 @@ ttk.Radiobutton(tab1, text="🔖 Simbólico", value=1, variable=cte_type).grid(
 # PROGRESS BARS
 # =============================================================================
 
-# Create progress bars with consistent styling
+# Create progress bars and status labels with consistent styling
 progressbar = ttk.Progressbar(tab1, mode='indeterminate', length=300)
-progressbar.grid(column=0, row=6, sticky='WE', columnspan=3, padx=PADDING_MEDIUM, pady=PADDING_MEDIUM)
+progressbar.grid(column=0, row=6, sticky='WE', columnspan=3, padx=PADDING_MEDIUM, pady=(PADDING_MEDIUM, 0))
+status_label1 = ttk.Label(tab1, text="", font=('Segoe UI', 8), foreground='gray')
+status_label1.grid(column=0, row=7, sticky='W', columnspan=3, padx=PADDING_MEDIUM, pady=(0, PADDING_SMALL))
 
 progressbar2 = ttk.Progressbar(tab2, mode='indeterminate', length=300)
-progressbar2.pack(side=BOTTOM, fill='x', padx=PADDING_MEDIUM, pady=PADDING_MEDIUM)
+progressbar2.grid(column=0, row=6, sticky='WE', columnspan=3, padx=PADDING_MEDIUM, pady=(PADDING_MEDIUM, 0))
+status_label2 = ttk.Label(tab2, text="", font=('Segoe UI', 8), foreground='gray')
+status_label2.grid(column=0, row=7, sticky='W', columnspan=3, padx=PADDING_MEDIUM, pady=(0, PADDING_SMALL))
 
 progressbar3 = ttk.Progressbar(tab3, mode='indeterminate', length=300)
-progressbar3.pack(side=BOTTOM, fill='x', padx=PADDING_MEDIUM, pady=PADDING_MEDIUM)
+progressbar3.grid(column=0, row=10, sticky='WE', columnspan=3, padx=PADDING_MEDIUM, pady=(PADDING_MEDIUM, 0))
+status_label3 = ttk.Label(tab3, text="", font=('Segoe UI', 8), foreground='gray')
+status_label3.grid(column=0, row=11, sticky='W', columnspan=3, padx=PADDING_MEDIUM, pady=(0, PADDING_SMALL))
 
 progressbar4 = ttk.Progressbar(tab2_1, mode='indeterminate', length=300)
-progressbar4.grid(column=0, row=6, sticky='WE', columnspan=3, padx=PADDING_MEDIUM, pady=PADDING_MEDIUM)
+progressbar4.grid(column=0, row=6, sticky='WE', columnspan=3, padx=PADDING_MEDIUM, pady=(PADDING_MEDIUM, 0))
+status_label4 = ttk.Label(tab2_1, text="", font=('Segoe UI', 8), foreground='gray')
+status_label4.grid(column=0, row=7, sticky='W', columnspan=3, padx=PADDING_MEDIUM, pady=(0, PADDING_SMALL))
 
 progressbar5 = ttk.Progressbar(tab5, mode='indeterminate', length=300)
-progressbar5.grid(column=0, row=6, sticky='WE', columnspan=3, padx=PADDING_MEDIUM, pady=PADDING_MEDIUM)
+progressbar5.grid(column=0, row=6, sticky='WE', columnspan=3, padx=PADDING_MEDIUM, pady=(PADDING_MEDIUM, 0))
+status_label5 = ttk.Label(tab5, text="", font=('Segoe UI', 8), foreground='gray')
+status_label5.grid(column=0, row=7, sticky='W', columnspan=3, padx=PADDING_MEDIUM, pady=(0, PADDING_SMALL))
 
 
 # =============================================================================
@@ -965,6 +1027,12 @@ tab1.rowconfigure(6, weight=1)
 for col in range(3):
     tab1.columnconfigure(col, weight=1)
 
+# Configure Tab 2 (CTe Complementar) - Auto resize
+tab2.rowconfigure(2, weight=2)
+tab2.rowconfigure(6, weight=1)
+for col in range(3):
+    tab2.columnconfigure(col, weight=1)
+
 # Configure Tab 2_1 (CTe por UF) - Auto resize
 tab2_1.rowconfigure(2, weight=2)
 tab2_1.rowconfigure(6, weight=1)
@@ -974,6 +1042,8 @@ for col in range(3):
 # Configure Tab 3 (Utilitários) - Auto resize
 for row in range(5):
     tab3.rowconfigure(row, weight=1)
+tab3.rowconfigure(10, weight=0)
+tab3.rowconfigure(11, weight=0)
 tab3.columnconfigure(0, weight=1)
 
 # Configure Tab 4 (Arquivos) - Auto resize
