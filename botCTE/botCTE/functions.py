@@ -87,8 +87,36 @@ class Start:
 class Browse:
     """Handles file/folder browsing dialogs and updates the associated StringVar."""
 
-    def __init__(self, string_variable=None):
+    def __init__(self, string_variable=None, parent=None):
         self.string_variable = string_variable
+        self.parent = parent
+
+    @staticmethod
+    def _pick_folder_subprocess(title='Selecione a pasta'):
+        """Open a folder picker in a clean subprocess to avoid DPI/COM freeze.
+
+        botcity (via pywinauto) contaminates the main process COM apartment
+        and DPI state, which makes tkinter's askdirectory freeze on some
+        Windows machines. Running the dialog in a fresh child process sidesteps
+        the issue entirely.
+        """
+        import subprocess
+        script = (
+            "import tkinter as tk, tkinter.filedialog as fd, sys;"
+            "r = tk.Tk(); r.withdraw();"
+            f"p = fd.askdirectory(parent=r, title={title!r});"
+            "r.destroy();"
+            "print(p if p else '', end='')"
+        )
+        try:
+            result = subprocess.run(
+                [sys.executable, '-c', script],
+                capture_output=True, text=True, timeout=120,
+            )
+            path = result.stdout.strip()
+            return path if path else None
+        except Exception:
+            return None
 
     def browse_files(self, filename_variable=None, archive_name=None, **_kwargs):
         """Open a file browser for Excel files."""
@@ -98,8 +126,8 @@ class Browse:
         )
 
         file_name = fd.askopenfilename(
+            parent=self.parent,
             title='Selecione o arquivo',
-            initialdir='cd',
             filetypes=filetypes
         )
 
@@ -115,10 +143,7 @@ class Browse:
 
     def browse_folder(self, folder_variable=None, archive_name='folderpath.txt', **_kwargs):
         """Open a folder browser dialog."""
-        folder_path = fd.askdirectory(
-            title='Selecione a pasta',
-            initialdir='cd',
-        )
+        folder_path = self._pick_folder_subprocess('Selecione a pasta')
 
         if not folder_path:
             return  # User cancelled the dialog
@@ -135,8 +160,8 @@ class Browse:
         filetypes = (('Arquivo executável', '*.exe'),)
 
         file_name = fd.askopenfilename(
+            parent=self.parent,
             title='Selecione o arquivo',
-            initialdir='cd',
             filetypes=filetypes
         )
 

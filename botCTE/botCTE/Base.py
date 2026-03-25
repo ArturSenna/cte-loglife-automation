@@ -27,11 +27,10 @@ from ttkthemes import ThemedStyle
 
 # Local imports
 from functions import *
-try:
-    from emissions import *
-except ImportError:
-    pass  # Handle missing emissions module gracefully
-import bot
+
+# NOTE: 'emissions' and 'bot' are imported AFTER Tk() creation below,
+# because botcity.core.DesktopBot sets DPI awareness on import,
+# which freezes tkinter file dialogs if done before Tk() exists.
 
 # Update system imports
 try:
@@ -518,18 +517,16 @@ def check_for_updates_on_startup(parent_window):
 # APPLICATION SETUP
 # =============================================================================
 
-# Enable DPI awareness on Windows for crisp rendering on high-DPI displays
-try:
-    ctypes.windll.shcore.SetProcessDpiAwareness(1)  # PROCESS_SYSTEM_DPI_AWARE
-except (AttributeError, OSError):
-    try:
-        ctypes.windll.user32.SetProcessDPIAware()
-    except (AttributeError, OSError):
-        pass  # Not on Windows or older version, skip
-
-# Create main window
+# Create main window — MUST happen before importing botcity (via emissions/bot)
 root = Tk()
 root.title(APP_TITLE)
+
+# Now safe to import modules that trigger botcity's DPI awareness
+try:
+    from emissions import *
+except ImportError:
+    pass  # Handle missing emissions module gracefully
+import bot
 root.geometry(WINDOW_SIZE)
 root.resizable(True, True)
 root.minsize(520, 400)
@@ -693,11 +690,11 @@ relatorio_target_Entry = ttk.Entry(tab4_frame, textvariable=relatorio_target, **
 relatorio_target_Entry.grid(column=1, row=4, sticky="EW", padx=PADDING_LARGE, pady=PADDING_MEDIUM)
 
 # Initialize Browse objects (linked to StringVars for automatic Entry updates)
-browse1 = Browse(cte_folder)
-browse2 = Browse(folderpath)
-browse3 = Browse(folderpath2)
-browse4 = Browse(relatorio_bsoft)
-browse5 = Browse(relatorio_target)
+browse1 = Browse(cte_folder, parent=root)
+browse2 = Browse(folderpath, parent=root)
+browse3 = Browse(folderpath2, parent=root)
+browse4 = Browse(relatorio_bsoft, parent=root)
+browse5 = Browse(relatorio_target, parent=root)
 
 # =============================================================================
 # ACTION BUTTONS
