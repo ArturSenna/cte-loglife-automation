@@ -85,29 +85,22 @@ class Start:
 
 
 class Browse:
-    """Handles file/folder browsing dialogs and updates the associated StringVar."""
+    """Handles file/folder browsing dialogs and updates the associated StringVar.
+
+    All dialogs run in a clean subprocess to avoid DPI/COM freezes caused by
+    botcity (pywinauto) contaminating the main process state on Windows.
+    """
+
+    _icon_path = os.path.join(_SCRIPT_DIR, "my_icon.ico")
 
     def __init__(self, string_variable=None, parent=None):
         self.string_variable = string_variable
         self.parent = parent
 
     @staticmethod
-    def _pick_folder_subprocess(title='Selecione a pasta'):
-        """Open a folder picker in a clean subprocess to avoid DPI/COM freeze.
-
-        botcity (via pywinauto) contaminates the main process COM apartment
-        and DPI state, which makes tkinter's askdirectory freeze on some
-        Windows machines. Running the dialog in a fresh child process sidesteps
-        the issue entirely.
-        """
+    def _run_dialog_subprocess(script):
+        """Run a tkinter dialog script in a clean subprocess and return stdout."""
         import subprocess
-        script = (
-            "import tkinter as tk, tkinter.filedialog as fd, sys;"
-            "r = tk.Tk(); r.withdraw();"
-            f"p = fd.askdirectory(parent=r, title={title!r});"
-            "r.destroy();"
-            "print(p if p else '', end='')"
-        )
         try:
             result = subprocess.run(
                 [sys.executable, '-c', script],
@@ -118,6 +111,34 @@ class Browse:
         except Exception:
             return None
 
+    @classmethod
+    def _pick_folder(cls, title='Selecione a pasta'):
+        """Open a folder picker in a clean subprocess."""
+        icon = cls._icon_path.replace('\\', '\\\\')
+        script = (
+            "import tkinter as tk, tkinter.filedialog as fd;"
+            "r = tk.Tk(); r.withdraw();"
+            f"r.iconbitmap(r'{cls._icon_path}') if __import__('os').path.exists(r'{cls._icon_path}') else None;"
+            f"p = fd.askdirectory(parent=r, title={title!r});"
+            "r.destroy();"
+            "print(p if p else '', end='')"
+        )
+        return cls._run_dialog_subprocess(script)
+
+    @classmethod
+    def _pick_file(cls, title='Selecione o arquivo', filetypes=()):
+        """Open a file picker in a clean subprocess."""
+        ft_repr = repr(filetypes)
+        script = (
+            "import tkinter as tk, tkinter.filedialog as fd;"
+            "r = tk.Tk(); r.withdraw();"
+            f"r.iconbitmap(r'{cls._icon_path}') if __import__('os').path.exists(r'{cls._icon_path}') else None;"
+            f"p = fd.askopenfilename(parent=r, title={title!r}, filetypes={ft_repr});"
+            "r.destroy();"
+            "print(p if p else '', end='')"
+        )
+        return cls._run_dialog_subprocess(script)
+
     def browse_files(self, filename_variable=None, archive_name=None, **_kwargs):
         """Open a file browser for Excel files."""
         filetypes = (
@@ -125,11 +146,7 @@ class Browse:
             ('Excel habilitado para macro', '*.xlsm')
         )
 
-        file_name = fd.askopenfilename(
-            parent=self.parent,
-            title='Selecione o arquivo',
-            filetypes=filetypes
-        )
+        file_name = self._pick_file('Selecione o arquivo', filetypes)
 
         if not file_name:
             return  # User cancelled the dialog
@@ -143,7 +160,7 @@ class Browse:
 
     def browse_folder(self, folder_variable=None, archive_name='folderpath.txt', **_kwargs):
         """Open a folder browser dialog."""
-        folder_path = self._pick_folder_subprocess('Selecione a pasta')
+        folder_path = self._pick_folder('Selecione a pasta')
 
         if not folder_path:
             return  # User cancelled the dialog
@@ -159,11 +176,7 @@ class Browse:
         """Open a file browser for executables."""
         filetypes = (('Arquivo executável', '*.exe'),)
 
-        file_name = fd.askopenfilename(
-            parent=self.parent,
-            title='Selecione o arquivo',
-            filetypes=filetypes
-        )
+        file_name = self._pick_file('Selecione o arquivo', filetypes)
 
         if not file_name:
             return  # User cancelled the dialog
