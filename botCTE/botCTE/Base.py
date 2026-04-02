@@ -3,6 +3,56 @@ CTe LogLife - Main Application Interface
 Modern redesigned UI for CTe management system
 """
 
+# =============================================================================
+# DIALOG SUBPROCESS MODE
+# When launched with --pick-folder or --pick-file, act as a lightweight dialog
+# process and exit immediately. This MUST run before any heavy imports
+# (botcity, pywinauto, etc.) to keep COM/DPI state clean.
+# =============================================================================
+import sys
+import os
+
+if len(sys.argv) >= 2 and sys.argv[1] in ('--pick-folder', '--pick-file'):
+    import tkinter as _tk
+    from tkinter import filedialog as _fd
+    import json as _json
+
+    _root = _tk.Tk()
+    _root.withdraw()
+
+    # Determine icon path (works for both frozen and dev)
+    if getattr(sys, 'frozen', False):
+        _icon_dir = getattr(sys, '_MEIPASS', os.path.dirname(sys.executable))
+    else:
+        _icon_dir = os.path.dirname(os.path.abspath(__file__))
+    _icon = os.path.join(_icon_dir, 'my_icon.ico')
+    if os.path.exists(_icon):
+        try:
+            _root.iconbitmap(_icon)
+        except Exception:
+            pass
+
+    _title = sys.argv[2] if len(sys.argv) > 2 else ''
+
+    if sys.argv[1] == '--pick-folder':
+        _path = _fd.askdirectory(parent=_root, title=_title or 'Selecione a pasta')
+    else:
+        _filetypes = ()
+        if len(sys.argv) > 3:
+            try:
+                _filetypes = tuple(tuple(ft) for ft in _json.loads(sys.argv[3]))
+            except Exception:
+                pass
+        _path = _fd.askopenfilename(
+            parent=_root,
+            title=_title or 'Selecione o arquivo',
+            filetypes=_filetypes,
+        )
+
+    _root.destroy()
+    print(_path if _path else '', end='')
+    sys.exit(0)
+
 # Standard library imports
 import csv
 import ctypes.wintypes

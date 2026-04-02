@@ -98,13 +98,14 @@ class Browse:
         self.parent = parent
 
     @staticmethod
-    def _run_dialog_subprocess(script):
-        """Run a tkinter dialog script in a clean subprocess and return stdout."""
+    def _run_dialog_subprocess(args):
+        """Run a dialog in a clean subprocess and return the selected path."""
         import subprocess
         try:
             result = subprocess.run(
-                [sys.executable, '-c', script],
+                args,
                 capture_output=True, text=True, timeout=120,
+                creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0),
             )
             path = result.stdout.strip()
             return path if path else None
@@ -114,30 +115,43 @@ class Browse:
     @classmethod
     def _pick_folder(cls, title='Selecione a pasta'):
         """Open a folder picker in a clean subprocess."""
-        icon = cls._icon_path.replace('\\', '\\\\')
-        script = (
-            "import tkinter as tk, tkinter.filedialog as fd;"
-            "r = tk.Tk(); r.withdraw();"
-            f"r.iconbitmap(r'{cls._icon_path}') if __import__('os').path.exists(r'{cls._icon_path}') else None;"
-            f"p = fd.askdirectory(parent=r, title={title!r});"
-            "r.destroy();"
-            "print(p if p else '', end='')"
-        )
-        return cls._run_dialog_subprocess(script)
+        if getattr(sys, 'frozen', False):
+            # Frozen build: re-launch same exe in dialog mode
+            return cls._run_dialog_subprocess(
+                [sys.executable, '--pick-folder', title]
+            )
+        else:
+            # Dev mode: use python -c with inline script
+            script = (
+                "import tkinter as tk, tkinter.filedialog as fd;"
+                "r = tk.Tk(); r.withdraw();"
+                f"r.iconbitmap(r'{cls._icon_path}') if __import__('os').path.exists(r'{cls._icon_path}') else None;"
+                f"p = fd.askdirectory(parent=r, title={title!r});"
+                "r.destroy();"
+                "print(p if p else '', end='')"
+            )
+            return cls._run_dialog_subprocess([sys.executable, '-c', script])
 
     @classmethod
     def _pick_file(cls, title='Selecione o arquivo', filetypes=()):
         """Open a file picker in a clean subprocess."""
-        ft_repr = repr(filetypes)
-        script = (
-            "import tkinter as tk, tkinter.filedialog as fd;"
-            "r = tk.Tk(); r.withdraw();"
-            f"r.iconbitmap(r'{cls._icon_path}') if __import__('os').path.exists(r'{cls._icon_path}') else None;"
-            f"p = fd.askopenfilename(parent=r, title={title!r}, filetypes={ft_repr});"
-            "r.destroy();"
-            "print(p if p else '', end='')"
-        )
-        return cls._run_dialog_subprocess(script)
+        import json
+        ft_json = json.dumps(filetypes)
+        if getattr(sys, 'frozen', False):
+            return cls._run_dialog_subprocess(
+                [sys.executable, '--pick-file', title, ft_json]
+            )
+        else:
+            ft_repr = repr(filetypes)
+            script = (
+                "import tkinter as tk, tkinter.filedialog as fd;"
+                "r = tk.Tk(); r.withdraw();"
+                f"r.iconbitmap(r'{cls._icon_path}') if __import__('os').path.exists(r'{cls._icon_path}') else None;"
+                f"p = fd.askopenfilename(parent=r, title={title!r}, filetypes={ft_repr});"
+                "r.destroy();"
+                "print(p if p else '', end='')"
+            )
+            return cls._run_dialog_subprocess([sys.executable, '-c', script])
 
     def browse_files(self, filename_variable=None, archive_name=None, **_kwargs):
         """Open a file browser for Excel files."""

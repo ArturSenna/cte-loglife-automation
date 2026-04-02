@@ -525,7 +525,7 @@ def cte_complimentary(start_date, final_date, cte_comp_path, cte_folder, root, u
             services_billing['protocol'] == prot_number, 'totalAdditionalCollects'
         ].values.item()
 
-        if client != "EINSTEIN RECIFE":
+        if client != "HIAE - HOSPITAL ALBERT EINSTEIN":
             return total_price
         else:
             service_collect_qty = services_billing.loc[
