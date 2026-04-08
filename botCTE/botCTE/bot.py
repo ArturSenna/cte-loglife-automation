@@ -371,8 +371,7 @@ class Bot(DesktopBot):
         x, y, w, h = self.get_last_element()
         xPos = w / 2
         yPos = 1.5*h
-        self.double_click_relative(xPos, yPos)
-        self.control_c()
+        self.click_relative(xPos, yPos)
         self.tab()
         self.tab()
         self.enter()
@@ -409,6 +408,15 @@ class Bot(DesktopBot):
         if not self.find( "fifthPopUp", matching=0.97, waiting_time=60000):
             self.not_found("fifthPopUp")
         self.key_f10()
+        self.wait(2000)
+        if self.find("clicarCte", matching=0.97, waiting_time=10000):
+            x, y, w, h = self.get_last_element()
+            xPos = w / 2
+            yPos = 1.5*h
+            self.double_click_relative(xPos, yPos)
+            self.control_c()
+        else:
+            raise Exception("Elemento 'clicarCte' não encontrado")
         self.wait(2000)
 
         # self.action()

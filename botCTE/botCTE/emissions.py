@@ -227,8 +227,9 @@ def cte_list(start_date, final_date, folderpath, cte_folder, root):
         api_url = f'https://transportebiologico.com.br/api/public/service/cte-emission?initialDate={start_date_iso}&finalDate={end_date_iso}'
         
         # Combine both headers (xtoken for public routes and authorization for auth)
-        combined_headers = {**_get_r().headers, **_get_r().auth}
-        response = requests.get(api_url, headers=combined_headers)
+        r = _get_r()
+        combined_headers = {**r.headers, **r.auth}
+        response = r._session.get(api_url, headers=combined_headers)
         response.raise_for_status()
         
         response_json = response.json()
@@ -239,6 +240,8 @@ def cte_list(start_date, final_date, folderpath, cte_folder, root):
         # Extract services and total from response
         services_data = response_json.get('services', [])
         total = response_json.get('total', len(services_data))
+        
+        print(total)
             
     except requests.exceptions.RequestException as e:
         print(f"Error fetching services for CTE emission: {e}")
@@ -1157,9 +1160,12 @@ def cte_unique(cal_date, cte_path, cte_folder_path, cte_type, cte_s, volumes, ro
         print(f"Fetching service data for protocol {protocol}...")
         
         try:
-            response = requests.get(
-                f'https://transportebiologico.com.br/api/public/service/cte-emission/{protocol}',
-                headers={**_get_r().headers, **_get_r().auth}
+            r = _get_r()
+            _url = f'https://transportebiologico.com.br/api/public/service/cte-emission/{protocol}'
+            
+            response = r._session.get(
+                _url,
+                headers={**r.headers, **r.auth}
             )
             response.raise_for_status()
             data = response.json()
@@ -1497,8 +1503,10 @@ def cte_symbolic(start_date, final_date, folderpath, cte_folder, root):
     try:
         api_url = f'https://transportebiologico.com.br/api/public/service/cte-emission-symbolic?initialDate={start_date_iso}&finalDate={end_date_iso}'
         
-        combined_headers = {**_get_r().headers, **_get_r().auth}
-        response = requests.get(api_url, headers=combined_headers)
+        r = _get_r()
+        combined_headers = {**r.headers, **r.auth}
+        
+        response = r._session.get(api_url, headers=combined_headers)
         response.raise_for_status()
         
         response_json = response.json()
@@ -1867,8 +1875,10 @@ def cte_list_unified(start_date, final_date, folderpath, cte_folder, root):
     try:
         api_url = f'https://transportebiologico.com.br/api/public/service/cte-emission-unified?initialDate={start_date_iso}&finalDate={end_date_iso}'
         
-        combined_headers = {**_get_r().headers, **_get_r().auth}
-        response = requests.get(api_url, headers=combined_headers)
+        r = _get_r()
+        combined_headers = {**r.headers, **r.auth}
+        
+        response = r._session.get(api_url, headers=combined_headers)
         response.raise_for_status()
         
         response_json = response.json()
@@ -1877,6 +1887,7 @@ def cte_list_unified(start_date, final_date, folderpath, cte_folder, root):
         
         services_data = response_json.get('services', [])
         total = response_json.get('total', len(services_data))
+        print(total)
         symbolic_count = response_json.get('symbolic_count', 0)
         normal_count = response_json.get('normal_count', 0)
         normal_rodoviario_count = response_json.get('normal_rodoviario_count', 0)

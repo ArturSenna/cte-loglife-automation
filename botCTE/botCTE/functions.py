@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 import threading
 from json import loads
 from tkinter import filedialog as fd
@@ -217,20 +218,26 @@ class RequestDataFrame:
                 "Please ensure LOGLIFE_XTOKEN, LOGLIFE_USER, and LOGLIFE_PASSWORD are set in .env file"
             )
         
+        # Use a Session for connection pooling (reuses TCP+TLS connections)
+        self._session = requests.Session()
+        # Bypass Windows proxy auto-detection (WPAD) which can add ~40s delay
+        self._session.trust_env = False
         self.headers = {"xtoken": xtoken}
         details = {"email": email, "password": password}
-        key = requests.post("https://transportebiologico.com.br/api/sessions", json=details)
+        
+        key = self._session.post("https://transportebiologico.com.br/api/sessions", json=details)
         key_json = loads(key.text)
         self.auth = {"authorization": key_json["token"]}
 
     def request_public(self, link, request_type="get"):
 
+        
         if request_type == "get":
-            response = requests.get(link, headers=self.headers)
+            response = self._session.get(link, headers=self.headers)
         elif request_type == "post":
-            response = requests.post(link, headers=self.headers)
+            response = self._session.post(link, headers=self.headers)
         else:
-            response = requests.get(link, headers=self.headers)  # CHANGE LATER
+            response = self._session.get(link, headers=self.headers)  # CHANGE LATER
 
         response_json = loads(response.text)
         dataframe = pd.json_normalize(response_json)
@@ -239,15 +246,16 @@ class RequestDataFrame:
 
     def request_private(self, link: str, request_type="get", payload: dict = None, nested: bool = False, json: bool = False) -> pd.DataFrame:
 
+        
         if request_type == "get":
-            response = requests.get(link, headers=self.auth, data=payload)
+            response = self._session.get(link, headers=self.auth, data=payload)
         elif request_type == "post":
             if not json:
-                response = requests.post (link, headers=self.auth, data=payload)
+                response = self._session.post(link, headers=self.auth, data=payload)
             else:
-                response = requests.post (link, headers=self.auth, json=payload)
+                response = self._session.post(link, headers=self.auth, json=payload)
         else:
-            response = requests.get(link, headers=self.auth)  # CHANGE LATER
+            response = self._session.get(link, headers=self.auth)  # CHANGE LATER
 
         if nested:
             response_data = response.json()
@@ -274,13 +282,15 @@ class RequestDataFrame:
                 "type": upload_type
             }
 
-        response = requests.post(url=link, headers=self.auth, files=payload, data=upload_type)
+        
+        response = self._session.post(url=link, headers=self.auth, files=payload, data=upload_type)
 
         return response
 
     def post_private(self, link, payload):
 
-        response = requests.post(url=link, headers=self.auth, data=payload)
+        
+        response = self._session.post(url=link, headers=self.auth, data=payload)
 
         return response
 
