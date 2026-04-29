@@ -98,6 +98,22 @@ def _format_cell_value(value):
     return str(value).strip()
 
 
+def _format_document_value(value, expected_length=None):
+    digits = _only_digits(value)
+    if expected_length in (11, 14) and 0 < len(digits) < expected_length:
+        digits = digits.zfill(expected_length)
+    elif len(digits) == 13:
+        digits = digits.zfill(14)
+    elif len(digits) == 10:
+        digits = digits.zfill(11)
+
+    if len(digits) == 14:
+        return f'{digits[:2]}.{digits[2:5]}.{digits[5:8]}/{digits[8:12]}-{digits[12:]}'
+    if len(digits) == 11:
+        return f'{digits[:3]}.{digits[3:6]}.{digits[6:9]}-{digits[9:]}'
+    return _format_cell_value(value)
+
+
 def _only_digits(value):
     if pd.isna(value):
         return ''
@@ -108,6 +124,22 @@ def _only_digits(value):
     else:
         text = str(value)
     return re.sub(r'\D', '', text)
+
+
+def _get_document_expected_length(*values):
+    lengths = [len(_only_digits(value)) for value in values if _only_digits(value)]
+    if any(length in (12, 13, 14) for length in lengths):
+        return 14
+    if any(length in (10, 11) for length in lengths):
+        return 11
+    return None
+
+
+def _normalize_document_digits(value, expected_length=None):
+    digits = _only_digits(value)
+    if expected_length in (11, 14) and 0 < len(digits) < expected_length:
+        return digits.zfill(expected_length)
+    return digits
 
 
 def _normalize_cte_number(value):
@@ -165,7 +197,7 @@ def _conferir_tomadores(file_path, payer_column_name):
             continue
 
         checked_rows += 1
-        payer_document = _only_digits(row[payer_column])
+        payer_document_raw = row[payer_column]
         service_data = _fetch_service_by_cte_number(cte_number)
 
         if service_data is None:
@@ -173,14 +205,16 @@ def _conferir_tomadores(file_path, payer_column_name):
             continue
 
         api_document_raw = service_data.get('cnpj_cpf')
-        api_document = _only_digits(api_document_raw)
+        expected_length = _get_document_expected_length(payer_document_raw, api_document_raw)
+        payer_document = _normalize_document_digits(payer_document_raw, expected_length)
+        api_document = _normalize_document_digits(api_document_raw, expected_length)
 
         if not payer_document or not api_document or payer_document != api_document:
             inconsistencies.append({
                 'cte_number': cte_number,
                 'row_number': row_index + 2,
-                'file_value': _format_cell_value(row[payer_column]),
-                'api_value': _format_cell_value(api_document_raw),
+                'file_value': _format_document_value(payer_document_raw, expected_length),
+                'api_value': _format_document_value(api_document_raw, expected_length),
                 'reason': 'CNPJ/CPF divergente',
             })
 
@@ -218,16 +252,17 @@ def _show_tomador_inconsistencies(root, inconsistencies, status_label=None):
     header_frame.pack(fill='x', padx=(0, 18))
 
     columns = (
-        ('', 6),
-        ('CT-e', 12),
-        ('Linha', 8),
-        ('Planilha', 24),
-        ('Cadastro', 24),
-        ('Motivo', 28),
+        ('', 34),
+        ('CT-e', 96),
+        ('Linha', 74),
+        ('Planilha', 184),
+        ('Cadastro', 184),
+        ('Motivo', 220),
     )
-    for column_index, (label, width) in enumerate(columns):
-        ttk.Label(header_frame, text=label, width=width, font=('Segoe UI', 9, 'bold')).grid(
-            column=column_index, row=0, sticky='w', padx=(0, 6), pady=(0, 4)
+    for column_index, (label, pixel_width) in enumerate(columns):
+        header_frame.columnconfigure(column_index, minsize=pixel_width, weight=0)
+        ttk.Label(header_frame, text=label, font=('Segoe UI', 9, 'bold'), anchor='center').grid(
+            column=column_index, row=0, sticky='ew', padx=(0, 6), pady=(0, 4)
         )
 
     canvas_frame = ttk.Frame(table_frame)
@@ -244,35 +279,65 @@ def _show_tomador_inconsistencies(root, inconsistencies, status_label=None):
     def configure_rows_width(event):
         canvas.itemconfigure(rows_window, width=event.width)
 
+    def scroll_with_mouse(event):
+        if getattr(event, 'num', None) == 4:
+            canvas.yview_scroll(-1, 'units')
+        elif getattr(event, 'num', None) == 5:
+            canvas.yview_scroll(1, 'units')
+        elif event.delta:
+            scroll_units = -int(event.delta / 120) if abs(event.delta) >= 120 else (-1 if event.delta > 0 else 1)
+            canvas.yview_scroll(scroll_units, 'units')
+        return 'break'
+
+    def bind_mousewheel(widget):
+        widget.bind('<MouseWheel>', scroll_with_mouse)
+        widget.bind('<Button-4>', scroll_with_mouse)
+        widget.bind('<Button-5>', scroll_with_mouse)
+
     rows_frame.bind('<Configure>', configure_scroll_region)
     canvas.bind('<Configure>', configure_rows_width)
     canvas.configure(yscrollcommand=scrollbar.set)
     canvas.pack(side='left', fill='both', expand=True)
     scrollbar.pack(side='right', fill='y')
+    bind_mousewheel(dialog)
+    bind_mousewheel(table_frame)
+    bind_mousewheel(canvas_frame)
+    bind_mousewheel(canvas)
+    bind_mousewheel(rows_frame)
+
+    for column_index, (_label, pixel_width) in enumerate(columns):
+        rows_frame.columnconfigure(column_index, minsize=pixel_width, weight=0)
+
+    def create_copyable_cell(parent, text, width, row, column):
+        entry = ttk.Entry(parent, width=1)
+        entry.grid(column=column, row=row, sticky='ew', padx=(0, 6), pady=2)
+        entry.insert(0, str(text))
+        entry.configure(state='readonly')
+
+        def select_all(event):
+            event.widget.select_range(0, END)
+            return 'break'
+
+        entry.bind('<Control-a>', select_all)
+        entry.bind('<Control-A>', select_all)
+        bind_mousewheel(entry)
+        return entry
 
     selected_items = []
     for row_position, item in enumerate(inconsistencies):
         selected_var = BooleanVar(value=False)
         selected_items.append((selected_var, item))
 
-        ttk.Checkbutton(rows_frame, variable=selected_var).grid(
-            column=0, row=row_position, sticky='w', padx=(0, 6), pady=2
+        checkbox = ttk.Checkbutton(rows_frame, variable=selected_var)
+        checkbox.grid(
+            column=0, row=row_position, sticky='nsew', padx=(0, 6), pady=2
         )
-        ttk.Label(rows_frame, text=item['cte_number'], width=12).grid(
-            column=1, row=row_position, sticky='w', padx=(0, 6), pady=2
-        )
-        ttk.Label(rows_frame, text=str(item['row_number']), width=8).grid(
-            column=2, row=row_position, sticky='w', padx=(0, 6), pady=2
-        )
-        ttk.Label(rows_frame, text=item['file_value'] or '-', width=24).grid(
-            column=3, row=row_position, sticky='w', padx=(0, 6), pady=2
-        )
-        ttk.Label(rows_frame, text=item['api_value'] or '-', width=24).grid(
-            column=4, row=row_position, sticky='w', padx=(0, 6), pady=2
-        )
-        ttk.Label(rows_frame, text=item['reason'], width=28).grid(
-            column=5, row=row_position, sticky='w', padx=(0, 6), pady=2
-        )
+        bind_mousewheel(checkbox)
+        create_copyable_cell(rows_frame, item['cte_number'], 12, row_position, 1)
+        create_copyable_cell(rows_frame, str(item['row_number']), 8, row_position, 2)
+        create_copyable_cell(rows_frame, item['file_value'] or '-', 24, row_position, 3)
+        create_copyable_cell(rows_frame, item['api_value'] or '-', 24, row_position, 4)
+        create_copyable_cell(rows_frame, item['reason'], 28, row_position, 5)
 
     status_var = StringVar(value='')
     ttk.Label(dialog, textvariable=status_var, font=('Segoe UI', 8), foreground='gray').pack(
@@ -292,6 +357,24 @@ def _show_tomador_inconsistencies(root, inconsistencies, status_label=None):
     def clear_selection():
         for selected_var, _item in selected_items:
             selected_var.set(False)
+
+    def copy_selected_rows():
+        selected_rows = [item for selected_var, item in selected_items if selected_var.get()]
+        if not selected_rows:
+            messagebox.showwarning('Conferência de tomador', 'Selecione pelo menos uma linha para copiar.')
+            return
+
+        rows = ['CT-e\tLinha\tPlanilha\tCadastro\tMotivo']
+        rows.extend(
+            (
+                f"{item['cte_number']}\t{item['row_number']}\t"
+                f"{item['file_value'] or '-'}\t{item['api_value'] or '-'}\t{item['reason']}"
+            )
+            for item in selected_rows
+        )
+        dialog.clipboard_clear()
+        dialog.clipboard_append('\n'.join(rows))
+        status_var.set(f'{len(selected_rows)} linha(s) copiada(s).')
 
     def cancel_selected_ctes():
         selected_ctes = list(
@@ -349,6 +432,7 @@ def _show_tomador_inconsistencies(root, inconsistencies, status_label=None):
 
     ttk.Button(button_frame, text='Selecionar todos', command=select_all).pack(side='left')
     ttk.Button(button_frame, text='Limpar seleção', command=clear_selection).pack(side='left', padx=(10, 0))
+    ttk.Button(button_frame, text='Copiar selecionados', command=copy_selected_rows).pack(side='left', padx=(10, 0))
     close_button.pack(side='right')
     cancel_button.configure(command=cancel_selected_ctes)
     cancel_button.pack(side='right', padx=(0, 10))
