@@ -90,6 +90,47 @@ def _find_cte_column(dataframe):
     return None
 
 
+def _find_first_available_column(dataframe, candidates):
+    for candidate in candidates:
+        column = _resolve_column_name(dataframe.columns, candidate)
+        if column is not None:
+            return column
+    return None
+
+
+def _parse_currency_value(value):
+    if pd.isna(value):
+        return None
+    if isinstance(value, (int, float, np.integer, np.floating)):
+        return float(value)
+
+    text = str(value).strip()
+    if not text:
+        return None
+
+    text = re.sub(r'[^\d,.-]', '', text)
+    if not text or text in ('-', ',', '.'):
+        return None
+
+    if ',' in text and '.' in text:
+        if text.rfind(',') > text.rfind('.'):
+            text = text.replace('.', '').replace(',', '.')
+        else:
+            text = text.replace(',', '')
+    elif ',' in text:
+        text = text.replace('.', '').replace(',', '.')
+
+    try:
+        return float(text)
+    except ValueError:
+        return None
+
+
+def _is_value_five(value):
+    parsed_value = _parse_currency_value(value)
+    return parsed_value is not None and abs(parsed_value - 5) < 0.0001
+
+
 def _format_cell_value(value):
     if pd.isna(value):
         return ''
@@ -185,10 +226,24 @@ def _conferir_tomadores(file_path, payer_column_name):
             f"Colunas disponíveis: {', '.join(map(str, dataframe.columns))}"
         )
 
+    payer_name_column = _find_first_available_column(
+        dataframe,
+        ('Pagador do Frete - Nome', 'Pagador do Frete - Nome Fantasia'),
+    )
+    value_filter_columns = [
+        column
+        for column in (
+            _resolve_column_name(dataframe.columns, 'Total'),
+            _resolve_column_name(dataframe.columns, 'Valor do Frete'),
+        )
+        if column is not None
+    ]
+
     inconsistencies = []
     checked_rows = 0
     skipped_rows = 0
     not_found_rows = 0
+    value_five_rows = 0
 
     for row_index, row in dataframe.iterrows():
         cte_number = _normalize_cte_number(row[cte_column])
@@ -196,8 +251,13 @@ def _conferir_tomadores(file_path, payer_column_name):
             skipped_rows += 1
             continue
 
+        if any(_is_value_five(row[column]) for column in value_filter_columns):
+            value_five_rows += 1
+            continue
+
         checked_rows += 1
         payer_document_raw = row[payer_column]
+        payer_name = _format_cell_value(row[payer_name_column]) if payer_name_column is not None else ''
         service_data = _fetch_service_by_cte_number(cte_number)
 
         if service_data is None:
@@ -213,6 +273,7 @@ def _conferir_tomadores(file_path, payer_column_name):
             inconsistencies.append({
                 'cte_number': cte_number,
                 'row_number': row_index + 2,
+                'payer_name': payer_name,
                 'file_value': _format_document_value(payer_document_raw, expected_length),
                 'api_value': _format_document_value(api_document_raw, expected_length),
                 'reason': 'CNPJ/CPF divergente',
@@ -222,6 +283,7 @@ def _conferir_tomadores(file_path, payer_column_name):
         'checked_rows': checked_rows,
         'skipped_rows': skipped_rows,
         'not_found_rows': not_found_rows,
+        'value_five_rows': value_five_rows,
         'total_rows': len(dataframe),
     }
 
@@ -229,8 +291,8 @@ def _conferir_tomadores(file_path, payer_column_name):
 def _show_tomador_inconsistencies(root, inconsistencies, status_label=None):
     dialog = Toplevel(root)
     dialog.title('Conferência de tomador')
-    dialog.geometry('980x520')
-    dialog.minsize(820, 400)
+    dialog.geometry('1180x520')
+    dialog.minsize(980, 400)
     dialog.transient(root)
     dialog.grab_set()
 
@@ -255,6 +317,7 @@ def _show_tomador_inconsistencies(root, inconsistencies, status_label=None):
         ('', 34),
         ('CT-e', 96),
         ('Linha', 74),
+        ('Pagador', 220),
         ('Planilha', 184),
         ('Cadastro', 184),
         ('Motivo', 220),
@@ -335,9 +398,10 @@ def _show_tomador_inconsistencies(root, inconsistencies, status_label=None):
         bind_mousewheel(checkbox)
         create_copyable_cell(rows_frame, item['cte_number'], 12, row_position, 1)
         create_copyable_cell(rows_frame, str(item['row_number']), 8, row_position, 2)
-        create_copyable_cell(rows_frame, item['file_value'] or '-', 24, row_position, 3)
-        create_copyable_cell(rows_frame, item['api_value'] or '-', 24, row_position, 4)
-        create_copyable_cell(rows_frame, item['reason'], 28, row_position, 5)
+        create_copyable_cell(rows_frame, item.get('payer_name') or '-', 24, row_position, 3)
+        create_copyable_cell(rows_frame, item['file_value'] or '-', 24, row_position, 4)
+        create_copyable_cell(rows_frame, item['api_value'] or '-', 24, row_position, 5)
+        create_copyable_cell(rows_frame, item['reason'], 28, row_position, 6)
 
     status_var = StringVar(value='')
     ttk.Label(dialog, textvariable=status_var, font=('Segoe UI', 8), foreground='gray').pack(
@@ -364,11 +428,12 @@ def _show_tomador_inconsistencies(root, inconsistencies, status_label=None):
             messagebox.showwarning('Conferência de tomador', 'Selecione pelo menos uma linha para copiar.')
             return
 
-        rows = ['CT-e\tLinha\tPlanilha\tCadastro\tMotivo']
+        rows = ['CT-e\tLinha\tPagador\tPlanilha\tCadastro\tMotivo']
         rows.extend(
             (
                 f"{item['cte_number']}\t{item['row_number']}\t"
-                f"{item['file_value'] or '-'}\t{item['api_value'] or '-'}\t{item['reason']}"
+                f"{item.get('payer_name') or '-'}\t{item['file_value'] or '-'}\t"
+                f"{item['api_value'] or '-'}\t{item['reason']}"
             )
             for item in selected_rows
         )
@@ -558,6 +623,7 @@ def abrir_conferencia_tomador(root, status_label=None):
                             'Conferência concluída!\n\n'
                             f"Linhas conferidas: {stats['checked_rows']}\n"
                             f"Linhas ignoradas: {stats['skipped_rows']}\n\n"
+                            f"Linhas com valor 5 ignoradas: {stats['value_five_rows']}\n"
                             f"Serviços não encontrados na API: {stats['not_found_rows']}\n\n"
                             'Nenhuma divergência encontrada.'
                         ),

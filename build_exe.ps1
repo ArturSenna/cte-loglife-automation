@@ -24,8 +24,11 @@ if ($env:VIRTUAL_ENV) {
 } else {
     Write-Host "[WARNING] No virtual environment detected" -ForegroundColor Yellow
     Write-Host "Attempting to activate venv..." -ForegroundColor Yellow
-    
-    if (Test-Path ".\venv\Scripts\Activate.ps1") {
+
+    if (Test-Path ".\.venv\Scripts\Activate.ps1") {
+        & ".\.venv\Scripts\Activate.ps1"
+        Write-Host "[OK] Virtual environment activated: .\.venv" -ForegroundColor Green
+    } elseif (Test-Path ".\venv\Scripts\Activate.ps1") {
         & ".\venv\Scripts\Activate.ps1"
         Write-Host "[OK] Virtual environment activated" -ForegroundColor Green
     } else {
@@ -40,17 +43,35 @@ Write-Host ""
 # Check if PyInstaller is installed
 Write-Host "Checking PyInstaller installation..." -ForegroundColor Cyan
 try {
-    $pyinstallerVersion = & pyinstaller --version 2>&1
+    $pyinstallerVersion = & python -m PyInstaller --version 2>&1
     Write-Host "[OK] PyInstaller version: $pyinstallerVersion" -ForegroundColor Green
 } catch {
     Write-Host "[ERROR] PyInstaller not found" -ForegroundColor Red
     Write-Host "Installing PyInstaller..." -ForegroundColor Yellow
-    pip install pyinstaller
+    python -m pip install pyinstaller
     if ($LASTEXITCODE -ne 0) {
         Write-Host "[ERROR] Failed to install PyInstaller" -ForegroundColor Red
         exit 1
     }
     Write-Host "[OK] PyInstaller installed successfully" -ForegroundColor Green
+}
+
+Write-Host ""
+
+# Check pandas optional dependency used during import
+Write-Host "Checking numexpr installation..." -ForegroundColor Cyan
+& python -c "import numexpr; assert getattr(numexpr, '__version__', None); print(numexpr.__version__)" 2>$null
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "[WARNING] numexpr missing or invalid" -ForegroundColor Yellow
+    Write-Host "Installing numexpr..." -ForegroundColor Yellow
+    python -m pip install "numexpr==2.10.2"
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "[ERROR] Failed to install numexpr" -ForegroundColor Red
+        exit 1
+    }
+    Write-Host "[OK] numexpr installed successfully" -ForegroundColor Green
+} else {
+    Write-Host "[OK] numexpr is available" -ForegroundColor Green
 }
 
 Write-Host ""
@@ -79,12 +100,12 @@ if ($Console) {
     $specContent = $specContent -replace "console=False", "console=True"
     $specContent | Set-Content "CTe_LogLife_temp.spec"
     
-    & pyinstaller CTe_LogLife_temp.spec --clean
+    & python -m PyInstaller CTe_LogLife_temp.spec --clean
     
     # Clean up temp spec file
     Remove-Item "CTe_LogLife_temp.spec" -Force
 } else {
-    & pyinstaller CTe_LogLife.spec --clean
+    & python -m PyInstaller CTe_LogLife.spec --clean
 }
 
 if ($LASTEXITCODE -ne 0) {

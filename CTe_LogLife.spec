@@ -18,6 +18,15 @@ botcte_dir = os.path.join(base_dir, 'botCTE', 'botCTE')
 # Collect ALL cv2 components using collect_all (most comprehensive)
 cv2_datas, cv2_binaries, cv2_hiddenimports = collect_all('cv2', include_py_files=True)
 
+# Pandas may import numexpr at startup. If PyInstaller bundles only part of it,
+# pandas raises: "ImportError: Can't determine version for numexpr".
+try:
+    numexpr_datas, numexpr_binaries, numexpr_hiddenimports = collect_all('numexpr', include_py_files=True)
+    print("[INFO] Including complete numexpr package")
+except Exception as e:
+    numexpr_datas, numexpr_binaries, numexpr_hiddenimports = [], [], []
+    print(f"[WARNING] numexpr not collected: {e}")
+
 # Get certifi certificate bundle location
 certifi_path = os.path.dirname(certifi.__file__)
 
@@ -45,12 +54,14 @@ hiddenimports += collect_submodules('babel')
 
 # Add cv2 hidden imports from collect_all
 hiddenimports += cv2_hiddenimports
+hiddenimports += numexpr_hiddenimports
 
 # Exclude problematic cv2 imports to prevent recursion
 excludes = []
 
 # Collect data files from packages
 datas = cv2_datas[:]  # Start with cv2 datas from collect_all
+datas += numexpr_datas
 datas += collect_data_files('ttkthemes')
 datas += collect_data_files('babel')
 datas += collect_data_files('tkcalendar')
@@ -62,6 +73,7 @@ datas += [(os.path.join(certifi_path, 'cacert.pem'), 'certifi')]
 
 # Collect OpenCV binaries using collect_all results
 binaries = cv2_binaries[:]
+binaries += numexpr_binaries
 
 # Add application-specific data files
 datas += [
