@@ -14,6 +14,10 @@ class Bot(DesktopBot):
     def not_found(label):
         print(f"Element not found: {label}")
 
+    def paste_text(self, text):
+        self.copy_to_clipboard(str(text))
+        self.paste()
+
     # NOT IN USE!
     def open_bsoft(self, path=None, login=None, password=None):
 
@@ -25,13 +29,13 @@ class Bot(DesktopBot):
             self.not_found("User")
         self.click()
         self.wait(500)
-        self.type_key(login)
+        self.paste_text(login)
 
         # Senha
         if not self.find( "Password", matching=0.97, waiting_time=10000):
             self.not_found("Password")
         self.click()
-        self.type_key(password)
+        self.paste_text(password)
 
         # Enter
         if not self.find( "loginFinish", matching=0.97, waiting_time=100000):
@@ -86,8 +90,7 @@ class Bot(DesktopBot):
             if not self.find( "CNPJ_input", matching=0.97, waiting_time=10000):
                 self.not_found("CNPJ_input")
             self.doubleClickRelative(13, 24)
-            self.copy_to_clipboard(cnpj0)
-            self.type_key(cnpj0)
+            self.paste_text(cnpj0)
 
             if self.find( "Found1", matching=0.97, waiting_time=1500):
                 break
@@ -107,8 +110,7 @@ class Bot(DesktopBot):
             if not self.find( "CNPJ_input", matching=0.97, waiting_time=10000):
                 self.not_found("CNPJ_input")
             self.doubleClickRelative(13, 24)
-            self.copy_to_clipboard(cnpj1)
-            self.paste(cnpj1)
+            self.paste_text(cnpj1)
 
             if self.find( "Found1", matching=0.97, waiting_time=1500):
                 break
@@ -141,7 +143,7 @@ class Bot(DesktopBot):
                 self.not_found("CNPJ_input")
             self.doubleClickRelative(13, 24)
             self.wait(300)
-            self.paste(payer_cnpj)
+            self.paste_text(payer_cnpj)
 
             if not self.find( "Found1", matching=0.97, waiting_time=1500):
                 self.not_found("Found1")
@@ -170,7 +172,7 @@ class Bot(DesktopBot):
         if not self.find( "Nat", matching=0.97, waiting_time=10000):
             self.not_found("Nat")
         self.click()
-        self.type_key('M')
+        self.paste_text('MATERIAL BIOLÓGICO')
         self.enter()
 
         if volumes is None:
@@ -180,20 +182,20 @@ class Bot(DesktopBot):
             self.not_found("Weight1")
         self.click()
         if cte_instance is None:
-            self.paste(str(int(volumes) * 2))
+            self.paste_text(str(int(volumes) * 2))
             self.tab()
-            self.paste(str(int(volumes) * 2))
+            self.paste_text(str(int(volumes) * 2))
             self.tab()
-            self.paste(str(int(volumes) * 2))
+            self.paste_text(str(int(volumes) * 2))
             self.tab()
             self.tab(wait=500)
             self.type_keys(str(volumes))
         if cte_instance == 1:
-            self.paste(str(int(volumes) * 2))
+            self.paste_text(str(int(volumes) * 2))
             self.tab()
-            self.paste(str(int(volumes) * 2))
+            self.paste_text(str(int(volumes) * 2))
             self.tab()
-            self.paste(str(int(volumes) * 2))
+            self.paste_text(str(int(volumes) * 2))
             self.tab()
             self.tab(wait=500)
             self.type_keys(str(volumes))
@@ -331,7 +333,7 @@ class Bot(DesktopBot):
         if not self.find("Obs3", matching=0.9, waiting_time=10000):
             self.not_found("Obs3")
         self.click()
-        self.type_key(icms_text)
+        self.paste_text(icms_text)
 
         uf_list = ["AL", "AP", "GO", "MS", "MT", "PA", "PE", "PI", "PR", "RO", "RR", "RS", "SC", "TO"]
 
@@ -345,9 +347,9 @@ class Bot(DesktopBot):
                 self.not_found("include_tp_info")
             self.click()
 
-            self.type_key("GNRE_ICMSST")
+            self.paste_text("GNRE_ICMSST")
             self.tab()
-            self.type_key(tp_info)
+            self.paste_text(tp_info)
 
             if not self.find( "confirm_tp_info", matching=0.97, waiting_time=10000):
                 self.not_found("confirm_tp_info")
@@ -479,7 +481,7 @@ class Bot(DesktopBot):
             self.wait(200)
 
             # Type cancellation reason
-            self.type_keys("TRANSPORTE CANCELADO")
+            self.paste_text("TRANSPORTE CANCELADO")
             self.wait(200)
 
             # Confirm cancellation
@@ -576,7 +578,7 @@ class Bot(DesktopBot):
             x, y, w, h = self.get_last_element()
             self.click_at(x + w // 2, y + h)
             self.wait(200)
-            self.type_keys(supplier)
+            self.paste_text(supplier)
             self.enter()
         else:
             raise Exception("Elemento 'icms_state' não encontrado")
@@ -585,7 +587,7 @@ class Bot(DesktopBot):
             x, y, w, h = self.get_last_element()
             self.click_at(x + w // 2, y + 1.5*h)
             self.wait(200)
-            self.type_keys(cost_center)
+            self.paste_text(cost_center)
             self.enter()
 
 
@@ -600,7 +602,7 @@ class Bot(DesktopBot):
             x, y, w, h = self.get_last_element()
             self.click_at(x + w // 2, y + 1.5*h)
             self.wait(200)
-            self.type_keys("BANCO BRADESCO")
+            self.paste_text("BANCO BRADESCO")
             self.enter()
         else:
             raise Exception("Elemento 'icms_bank' não encontrado")
@@ -609,7 +611,7 @@ class Bot(DesktopBot):
             x, y, w, h = self.get_last_element()
             self.click_at(x + w // 2, y + 1.5*h)
             self.wait(200)
-            self.type_keys(str(barcode_number))
+            self.paste_text(str(barcode_number))
             self.enter()
         else:
             raise Exception("Elemento 'icms_barcode' não encontrado")
@@ -617,7 +619,7 @@ class Bot(DesktopBot):
         if self.find("icms_obs", matching=0.97, waiting_time=10000):
             self.click()
             self.wait(200)
-            self.type_keys(f"REF. A ICMS ST {emission_date}")
+            self.paste_text(f"REF. A ICMS ST {emission_date}")
         else:
             raise Exception("Elemento 'icms_obs' não encontrado")
         
