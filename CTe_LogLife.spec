@@ -30,6 +30,7 @@ hiddenimports = [
     'pandas._libs.tslibs.np_datetime',
     'pandas._libs.skiplist',
     'openpyxl.cell._writer',
+    'xlrd',
     'tkcalendar',
     'ttkthemes',
     'PIL._tkinter_finder',

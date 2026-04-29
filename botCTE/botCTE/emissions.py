@@ -1,9 +1,12 @@
 import datetime as dt
 import os
+import re
 import sys
+import threading
 import time
 import traceback
 from datetime import datetime
+from tkinter import messagebox
 import numpy as np
 import requests
 import bot
@@ -16,6 +19,10 @@ from functions import *
 _r = None
 _uf_base = None
 _aliquota_base = None
+
+CONFERENCIA_TOMADOR_DEFAULT_COLUMN = 'Pagador do Frete - CNPJ/CPF'
+CONFERENCIA_TOMADOR_COLUMN_CONFIG = 'conferencia_tomador_column.txt'
+SERVICE_BY_CTE_URL = 'https://transportebiologico.com.br/api/public/service/by-cte'
 
 
 def _get_r():
@@ -40,6 +47,448 @@ def _get_aliquota_base():
     if _aliquota_base is None:
         _aliquota_base = pd.read_excel(os.path.join(_SCRIPT_DIR, 'Alíquota.xlsx'), sheet_name='Planilha1')
     return _aliquota_base
+
+
+def _read_conferencia_tomador_default_column():
+    try:
+        with open(CONFERENCIA_TOMADOR_COLUMN_CONFIG, 'r', encoding='utf-8') as config_file:
+            value = config_file.read().strip()
+            return value or CONFERENCIA_TOMADOR_DEFAULT_COLUMN
+    except UnicodeDecodeError:
+        with open(CONFERENCIA_TOMADOR_COLUMN_CONFIG, 'r', encoding='windows-1252') as config_file:
+            value = config_file.read().strip()
+            return value or CONFERENCIA_TOMADOR_DEFAULT_COLUMN
+    except FileNotFoundError:
+        return CONFERENCIA_TOMADOR_DEFAULT_COLUMN
+
+
+def _save_conferencia_tomador_default_column(column_name):
+    with open(CONFERENCIA_TOMADOR_COLUMN_CONFIG, 'w', encoding='utf-8') as config_file:
+        config_file.write(column_name.strip())
+
+
+def _read_excel_report(file_path):
+    try:
+        return pd.read_excel(file_path, engine='openpyxl')
+    except Exception:
+        return pd.read_excel(file_path, engine='xlrd')
+
+
+def _resolve_column_name(columns, requested_name):
+    requested_normalized = str(requested_name).strip().lower()
+    for column in columns:
+        if str(column).strip().lower() == requested_normalized:
+            return column
+    return None
+
+
+def _find_cte_column(dataframe):
+    for candidate in ('Número', 'Nº CT-e'):
+        column = _resolve_column_name(dataframe.columns, candidate)
+        if column is not None:
+            return column
+    return None
+
+
+def _format_cell_value(value):
+    if pd.isna(value):
+        return ''
+    if isinstance(value, (float, np.floating)) and value.is_integer():
+        return str(int(value))
+    return str(value).strip()
+
+
+def _only_digits(value):
+    if pd.isna(value):
+        return ''
+    if isinstance(value, (int, np.integer)):
+        text = str(value)
+    elif isinstance(value, (float, np.floating)) and value.is_integer():
+        text = str(int(value))
+    else:
+        text = str(value)
+    return re.sub(r'\D', '', text)
+
+
+def _normalize_cte_number(value):
+    digits = _only_digits(value)
+    if not digits:
+        return ''
+    return str(int(digits))
+
+
+def _fetch_service_by_cte_number(cte_number):
+    request_client = _get_r()
+    response = request_client._session.get(
+        SERVICE_BY_CTE_URL,
+        headers=request_client.headers,
+        params={'cteNumber': cte_number},
+        timeout=30,
+    )
+
+    if response.status_code == 404:
+        return None
+
+    response.raise_for_status()
+    response_data = response.json()
+    if not isinstance(response_data, dict):
+        raise ValueError(f'Retorno inesperado da API para CT-e {cte_number}')
+    return response_data
+
+
+def _conferir_tomadores(file_path, payer_column_name):
+    dataframe = _read_excel_report(file_path)
+
+    cte_column = _find_cte_column(dataframe)
+    if cte_column is None:
+        raise ValueError(
+            "Coluna 'Número' ou 'Nº CT-e' não encontrada. "
+            f"Colunas disponíveis: {', '.join(map(str, dataframe.columns))}"
+        )
+
+    payer_column = _resolve_column_name(dataframe.columns, payer_column_name)
+    if payer_column is None:
+        raise ValueError(
+            f"Coluna '{payer_column_name}' não encontrada. "
+            f"Colunas disponíveis: {', '.join(map(str, dataframe.columns))}"
+        )
+
+    inconsistencies = []
+    checked_rows = 0
+    skipped_rows = 0
+    not_found_rows = 0
+
+    for row_index, row in dataframe.iterrows():
+        cte_number = _normalize_cte_number(row[cte_column])
+        if not cte_number:
+            skipped_rows += 1
+            continue
+
+        checked_rows += 1
+        payer_document = _only_digits(row[payer_column])
+        service_data = _fetch_service_by_cte_number(cte_number)
+
+        if service_data is None:
+            not_found_rows += 1
+            continue
+
+        api_document_raw = service_data.get('cnpj_cpf')
+        api_document = _only_digits(api_document_raw)
+
+        if not payer_document or not api_document or payer_document != api_document:
+            inconsistencies.append({
+                'cte_number': cte_number,
+                'row_number': row_index + 2,
+                'file_value': _format_cell_value(row[payer_column]),
+                'api_value': _format_cell_value(api_document_raw),
+                'reason': 'CNPJ/CPF divergente',
+            })
+
+    return inconsistencies, {
+        'checked_rows': checked_rows,
+        'skipped_rows': skipped_rows,
+        'not_found_rows': not_found_rows,
+        'total_rows': len(dataframe),
+    }
+
+
+def _show_tomador_inconsistencies(root, inconsistencies, status_label=None):
+    dialog = Toplevel(root)
+    dialog.title('Conferência de tomador')
+    dialog.geometry('980x520')
+    dialog.minsize(820, 400)
+    dialog.transient(root)
+    dialog.grab_set()
+
+    try:
+        dialog.iconbitmap(os.path.join(_SCRIPT_DIR, 'my_icon.ico'))
+    except Exception:
+        pass
+
+    ttk.Label(
+        dialog,
+        text=f'{len(inconsistencies)} inconsistência(s) encontrada(s)',
+        font=('Segoe UI', 10, 'bold'),
+    ).pack(anchor='w', padx=15, pady=(15, 5))
+
+    table_frame = ttk.Frame(dialog)
+    table_frame.pack(fill='both', expand=True, padx=15, pady=5)
+
+    header_frame = ttk.Frame(table_frame)
+    header_frame.pack(fill='x', padx=(0, 18))
+
+    columns = (
+        ('', 6),
+        ('CT-e', 12),
+        ('Linha', 8),
+        ('Planilha', 24),
+        ('Cadastro', 24),
+        ('Motivo', 28),
+    )
+    for column_index, (label, width) in enumerate(columns):
+        ttk.Label(header_frame, text=label, width=width, font=('Segoe UI', 9, 'bold')).grid(
+            column=column_index, row=0, sticky='w', padx=(0, 6), pady=(0, 4)
+        )
+
+    canvas_frame = ttk.Frame(table_frame)
+    canvas_frame.pack(fill='both', expand=True)
+
+    canvas = Canvas(canvas_frame, borderwidth=0, highlightthickness=0)
+    scrollbar = ttk.Scrollbar(canvas_frame, orient='vertical', command=canvas.yview)
+    rows_frame = ttk.Frame(canvas)
+    rows_window = canvas.create_window((0, 0), window=rows_frame, anchor='nw')
+
+    def configure_scroll_region(_event=None):
+        canvas.configure(scrollregion=canvas.bbox('all'))
+
+    def configure_rows_width(event):
+        canvas.itemconfigure(rows_window, width=event.width)
+
+    rows_frame.bind('<Configure>', configure_scroll_region)
+    canvas.bind('<Configure>', configure_rows_width)
+    canvas.configure(yscrollcommand=scrollbar.set)
+    canvas.pack(side='left', fill='both', expand=True)
+    scrollbar.pack(side='right', fill='y')
+
+    selected_items = []
+    for row_position, item in enumerate(inconsistencies):
+        selected_var = BooleanVar(value=False)
+        selected_items.append((selected_var, item))
+
+        ttk.Checkbutton(rows_frame, variable=selected_var).grid(
+            column=0, row=row_position, sticky='w', padx=(0, 6), pady=2
+        )
+        ttk.Label(rows_frame, text=item['cte_number'], width=12).grid(
+            column=1, row=row_position, sticky='w', padx=(0, 6), pady=2
+        )
+        ttk.Label(rows_frame, text=str(item['row_number']), width=8).grid(
+            column=2, row=row_position, sticky='w', padx=(0, 6), pady=2
+        )
+        ttk.Label(rows_frame, text=item['file_value'] or '-', width=24).grid(
+            column=3, row=row_position, sticky='w', padx=(0, 6), pady=2
+        )
+        ttk.Label(rows_frame, text=item['api_value'] or '-', width=24).grid(
+            column=4, row=row_position, sticky='w', padx=(0, 6), pady=2
+        )
+        ttk.Label(rows_frame, text=item['reason'], width=28).grid(
+            column=5, row=row_position, sticky='w', padx=(0, 6), pady=2
+        )
+
+    status_var = StringVar(value='')
+    ttk.Label(dialog, textvariable=status_var, font=('Segoe UI', 8), foreground='gray').pack(
+        anchor='w', padx=15, pady=(0, 5)
+    )
+
+    button_frame = ttk.Frame(dialog)
+    button_frame.pack(fill='x', padx=15, pady=(0, 15))
+
+    cancel_button = ttk.Button(button_frame, text='Cancelar CT-es')
+    close_button = ttk.Button(button_frame, text='Fechar', command=dialog.destroy)
+
+    def select_all():
+        for selected_var, _item in selected_items:
+            selected_var.set(True)
+
+    def clear_selection():
+        for selected_var, _item in selected_items:
+            selected_var.set(False)
+
+    def cancel_selected_ctes():
+        selected_ctes = list(
+            dict.fromkeys(item['cte_number'] for selected_var, item in selected_items if selected_var.get())
+        )
+        if not selected_ctes:
+            messagebox.showwarning('Conferência de tomador', 'Selecione pelo menos um CT-e.')
+            return
+
+        confirmed = messagebox.askyesno(
+            'Confirmar cancelamento',
+            f"Cancelar {len(selected_ctes)} CT-e(s) selecionado(s)?\n\nEsta ação não pode ser desfeita.",
+            icon='warning',
+        )
+        if not confirmed:
+            return
+
+        cancel_button.config(state='disabled')
+        close_button.config(state='disabled')
+        status_var.set('Cancelando CT-es selecionados...')
+        if status_label is not None:
+            status_label.config(text='⏳ Cancelando CT-es selecionados...')
+
+        def worker():
+            cancelled = []
+            errors = []
+            bot_cte = bot.Bot()
+
+            for cte_number in selected_ctes:
+                try:
+                    bot_cte.cancel_cte(cte_number)
+                    cancelled.append(cte_number)
+                except Exception as exc:
+                    errors.append((cte_number, str(exc)))
+
+            def finish():
+                status_var.set('Cancelamento concluído.')
+                if status_label is not None:
+                    status_label.config(text='✔ Concluído')
+                dialog.destroy()
+
+                message = (
+                    'Cancelamento concluído!\n\n'
+                    f'CT-es cancelados: {len(cancelled)}\n'
+                    f'Erros: {len(errors)}'
+                )
+                if errors:
+                    error_lines = '\n'.join(f'- {cte}: {error}' for cte, error in errors[:5])
+                    message += f'\n\nPrimeiros erros:\n{error_lines}'
+                confirmation_pop_up(root, message)
+
+            root.after(0, finish)
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    ttk.Button(button_frame, text='Selecionar todos', command=select_all).pack(side='left')
+    ttk.Button(button_frame, text='Limpar seleção', command=clear_selection).pack(side='left', padx=(10, 0))
+    close_button.pack(side='right')
+    cancel_button.configure(command=cancel_selected_ctes)
+    cancel_button.pack(side='right', padx=(0, 10))
+
+
+def abrir_conferencia_tomador(root, status_label=None):
+    dialog = Toplevel(root)
+    dialog.title('Conferência de tomador')
+    dialog.geometry('720x260')
+    dialog.minsize(640, 240)
+    dialog.transient(root)
+    dialog.grab_set()
+
+    try:
+        dialog.iconbitmap(os.path.join(_SCRIPT_DIR, 'my_icon.ico'))
+    except Exception:
+        pass
+
+    file_path = StringVar(value='')
+    payer_column = StringVar(value=_read_conferencia_tomador_default_column())
+    status_var = StringVar(value='')
+
+    content = ttk.Frame(dialog, padding=15)
+    content.pack(fill='both', expand=True)
+    content.columnconfigure(1, weight=1)
+
+    ttk.Label(content, text='Arquivo:', font=('Segoe UI', 9, 'bold')).grid(
+        column=0, row=0, sticky='w', pady=(0, 10)
+    )
+    ttk.Entry(content, textvariable=file_path, state='readonly').grid(
+        column=1, row=0, sticky='ew', padx=(10, 10), pady=(0, 10)
+    )
+
+    def select_file():
+        selected_file = Browse._pick_file(
+            'Selecione o arquivo para conferência',
+            (
+                ('Arquivos Excel', '*.xlsx *.xls'),
+                ('Excel 2007+', '*.xlsx'),
+                ('Excel 97-2003', '*.xls'),
+            ),
+        )
+        if selected_file:
+            file_path.set(selected_file)
+
+    browse_button = ttk.Button(content, text='Selecionar', command=select_file)
+    browse_button.grid(column=2, row=0, sticky='ew', pady=(0, 10))
+
+    ttk.Label(content, text='Coluna:', font=('Segoe UI', 9, 'bold')).grid(
+        column=0, row=1, sticky='w', pady=(0, 10)
+    )
+    ttk.Entry(content, textvariable=payer_column).grid(
+        column=1, row=1, sticky='ew', padx=(10, 10), pady=(0, 10)
+    )
+
+    def save_default_column():
+        column_name = payer_column.get().strip()
+        if not column_name:
+            messagebox.showwarning('Conferência de tomador', 'Informe o nome da coluna.')
+            return
+        _save_conferencia_tomador_default_column(column_name)
+        messagebox.showinfo('Conferência de tomador', 'Coluna padrão salva.')
+
+    ttk.Button(content, text='Salvar padrão', command=save_default_column).grid(
+        column=2, row=1, sticky='ew', pady=(0, 10)
+    )
+
+    ttk.Label(content, textvariable=status_var, font=('Segoe UI', 8), foreground='gray').grid(
+        column=0, row=2, columnspan=3, sticky='w', pady=(5, 15)
+    )
+
+    button_frame = ttk.Frame(content)
+    button_frame.grid(column=0, row=3, columnspan=3, sticky='ew')
+
+    start_button = ttk.Button(button_frame, text='Iniciar conferência')
+    close_button = ttk.Button(button_frame, text='Fechar', command=dialog.destroy)
+
+    def start_conference():
+        selected_file = file_path.get().strip()
+        column_name = payer_column.get().strip()
+
+        if not selected_file:
+            messagebox.showwarning('Conferência de tomador', 'Selecione um arquivo Excel.')
+            return
+        if not column_name:
+            messagebox.showwarning('Conferência de tomador', 'Informe o nome da coluna.')
+            return
+
+        start_button.config(state='disabled')
+        browse_button.config(state='disabled')
+        close_button.config(state='disabled')
+        status_var.set('Conferindo tomadores...')
+        if status_label is not None:
+            status_label.config(text='⏳ Conferindo tomadores...')
+
+        def worker():
+            try:
+                inconsistencies, stats = _conferir_tomadores(selected_file, column_name)
+            except Exception as exc:
+                error_message = str(exc)
+
+                def fail():
+                    start_button.config(state='normal')
+                    browse_button.config(state='normal')
+                    close_button.config(state='normal')
+                    status_var.set('')
+                    if status_label is not None:
+                        status_label.config(text='')
+                    messagebox.showerror('Conferência de tomador', error_message)
+
+                root.after(0, fail)
+                return
+
+            def finish():
+                if status_label is not None:
+                    status_label.config(text='✔ Conferência concluída')
+                dialog.destroy()
+
+                if not inconsistencies:
+                    confirmation_pop_up(
+                        root,
+                        (
+                            'Conferência concluída!\n\n'
+                            f"Linhas conferidas: {stats['checked_rows']}\n"
+                            f"Linhas ignoradas: {stats['skipped_rows']}\n\n"
+                            f"Serviços não encontrados na API: {stats['not_found_rows']}\n\n"
+                            'Nenhuma divergência encontrada.'
+                        ),
+                    )
+                    return
+
+                _show_tomador_inconsistencies(root, inconsistencies, status_label=status_label)
+
+            root.after(0, finish)
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    start_button.configure(command=start_conference)
+    close_button.pack(side='right')
+    start_button.pack(side='right', padx=(0, 10))
 
 
 # Expose as module-level properties via a simple accessor pattern.

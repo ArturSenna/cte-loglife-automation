@@ -833,6 +833,11 @@ ttk.Button(tab3,
                status_label=status_label3
            )).grid(column=0, row=4, pady=PADDING_MEDIUM, padx=PADDING_XL, ipady=10, sticky='EW')
 
+ttk.Button(tab3,
+           text="Conferência de tomador",
+           command=lambda: abrir_conferencia_tomador(root, status_label3)
+           ).grid(column=0, row=5, pady=PADDING_MEDIUM, padx=PADDING_XL, ipady=10, sticky='EW')
+
 ttk.Button(tab1,
            text="✉️ Emitir",
            command=lambda: thread_0.start_thread(
@@ -1087,7 +1092,7 @@ for col in range(3):
     tab2_1.columnconfigure(col, weight=1)
 
 # Configure Tab 3 (Utilitários) - Auto resize
-for row in range(5):
+for row in range(6):
     tab3.rowconfigure(row, weight=1)
 tab3.rowconfigure(10, weight=0)
 tab3.rowconfigure(11, weight=0)
