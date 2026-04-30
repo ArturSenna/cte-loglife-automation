@@ -2,6 +2,7 @@ from botcity.core import DesktopBot
 from ctypes import windll
 import time
 from datetime import datetime, date
+import pyautogui
 
 
 # Uncomment the line below for integrations with BotMaestro
@@ -17,6 +18,9 @@ class Bot(DesktopBot):
     def paste_text(self, text):
         self.copy_to_clipboard(str(text))
         self.paste()
+
+    def type_text_char_by_char(self, text, wait_time=80):
+        pyautogui.write(str(text), interval=wait_time / 1000)
 
     # NOT IN USE!
     def open_bsoft(self, path=None, login=None, password=None):
@@ -585,9 +589,25 @@ class Bot(DesktopBot):
         
         if self.find("icms_cost_center", matching=0.97, waiting_time=10000):
             x, y, w, h = self.get_last_element()
-            self.click_at(x + w // 2, y + 1.5*h)
+            self.double_click_relative(w // 2, h)
+            self.wait(300)
+            self.control_a()
+            self.wait(100)
+            self.delete()
+            self.wait(100)
+            self.type_text_char_by_char(cost_center, wait_time=80)
             self.wait(200)
-            self.paste_text(cost_center)
+
+            if self.find("cost_center_not_filled", matching=0.97, waiting_time=1000):
+                self.double_click_relative(w // 2, h)
+                self.wait(300)
+                self.control_a()
+                self.wait(100)
+                self.delete()
+                self.wait(100)
+                self.type_text_char_by_char(cost_center, wait_time=80)
+                self.wait(200)
+
             self.enter()
 
 
