@@ -591,23 +591,7 @@ class Bot(DesktopBot):
             x, y, w, h = self.get_last_element()
             self.double_click_relative(w // 2, h)
             self.wait(300)
-            self.control_a()
-            self.wait(100)
-            self.delete()
-            self.wait(100)
             self.type_text_char_by_char(cost_center, wait_time=80)
-            self.wait(200)
-
-            if self.find("cost_center_not_filled", matching=0.97, waiting_time=1000):
-                self.double_click_relative(w // 2, h)
-                self.wait(300)
-                self.control_a()
-                self.wait(100)
-                self.delete()
-                self.wait(100)
-                self.type_text_char_by_char(cost_center, wait_time=80)
-                self.wait(200)
-
             self.enter()
 
 
