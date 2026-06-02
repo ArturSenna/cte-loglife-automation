@@ -1128,7 +1128,7 @@ def cte_complimentary(start_date, final_date, cte_comp_path, cte_folder, root, u
         ].values.item()
 
         if client != "HIAE - HOSPITAL ALBERT EINSTEIN":
-            return total_price
+            return max(total_price, 0)
         else:
             service_collect_qty = services_billing.loc[
                 services_billing['protocol'] == prot_number, 'serviceSourceAddressQty'
@@ -1140,7 +1140,7 @@ def cte_complimentary(start_date, final_date, cte_comp_path, cte_folder, root, u
             service_budget_qty = int(service_budget_qty)
             add_collect = service_collect_qty - service_budget_qty
 
-            if add_collect == 0:
+            if add_collect <= 0:
 
                 return 0
 
@@ -1159,7 +1159,7 @@ def cte_complimentary(start_date, final_date, cte_comp_path, cte_folder, root, u
                     total_mod_price += collect_price
                 total_add_price = total_mod_price - success_value
 
-                return total_add_price
+                return max(total_add_price, 0)
 
     def hiae_dry_ice_cost(prot_number):
 
@@ -1169,7 +1169,7 @@ def cte_complimentary(start_date, final_date, cte_comp_path, cte_folder, root, u
         ].values.item()
 
         if client != "HIAE - HOSPITAL ALBERT EINSTEIN":
-            return total_price
+            return max(total_price, 0)
 
         dry_ice_qty = sv.loc[sv['protocol'] == prot_number, 'serviceIDRequested.gelo_seco'].values.item()
         budget_id = sv.loc[sv['protocol'] == prot_number, 'serviceIDRequested.budget_id'].values.item()
@@ -1177,9 +1177,9 @@ def cte_complimentary(start_date, final_date, cte_comp_path, cte_folder, root, u
         if dry_ice_qty != 0 and budget_id in ['7f6b2c38-8fb1-47b7-a72e-2fa8acd73958', 'feffe85b-54cd-4ffa-9d2b-9e826422f26f']:
             add_collect_price = sv.loc[sv['protocol'] == prot_number, 'serviceIDRequested.price_add_collect'].values.item()
             new_price = total_price - add_collect_price + 60
-            return new_price
+            return max(new_price, 0)
         else:
-            return total_price
+            return max(total_price, 0)
 
     # def get_address_cnpj(add_list):
     #     _cnpj_list = []
