@@ -23,6 +23,7 @@ _aliquota_base = None
 CONFERENCIA_TOMADOR_DEFAULT_COLUMN = 'Pagador do Frete - CNPJ/CPF'
 CONFERENCIA_TOMADOR_COLUMN_CONFIG = 'conferencia_tomador_column.txt'
 SERVICE_BY_CTE_URL = 'https://transportebiologico.com.br/api/public/service/by-cte'
+CTE_COMPLEMENTARY_EMISSION_URL = 'https://transportebiologico.com.br/api/public/service/cte-emission-complementary'
 
 
 def _get_r():
@@ -1095,399 +1096,154 @@ def cte_list(start_date, final_date, folderpath, cte_folder, root):
     confirmation_pop_up(root, "Emissões realizadas com sucesso!")
 
 
-def cte_complimentary(start_date, final_date, cte_comp_path, cte_folder, root, unique=False, cte_cs=""):
-    def get_address_name(add):
-        add_lenght = len(add)
-        count = 0
-        add_total = ''
-        for i in range(add_lenght):
-            add_name = address.loc[address['id'] == add[i], 'trading_name'].values.item()
-            add_branch = address.loc[address['id'] == add[i], 'branch'].values.item()
-            count += 1
-            if count != add_lenght:
-                space = "\n"
-            else:
-                space = ''
-            if add_lenght == 1:
-                listing = str(add_name)
-            else:
-                listing = str(count) + '. ' + str(add_name)
-            add_total += listing + ' - ' + add_branch + space
-        return add_total
+def _parse_protocol_selection(cte_cs):
+    """Parse the "Emitir Avulso" field (protocols separated by ';').
 
-    def get_cte_number(protocol_number):
+    Raises ValueError when an entry is not a number.
+    """
+    return [int(entry) for entry in str(cte_cs).split(';') if entry.strip()]
 
-        cte_number = sv.loc[sv['protocol'] == protocol_number, 'cte_loglife'].values.item()
 
-        return cte_number
+def _fetch_complementary_cte_services(start_date, final_date, protocols=None):
+    """Fetch the services eligible for complementary CT-e emission.
 
-    def hiae_additional_cost(prot_number):
-        client = report.loc[report['PROTOCOLO'] == prot_number, 'CLIENTE'].values.item()
-        total_price = services_billing.loc[
-            services_billing['protocol'] == prot_number, 'totalAdditionalCollects'
-        ].values.item()
+    The backend applies the eligibility rules (normal CT-e issued, service past
+    the boarding steps, no complementary CT-e yet, billing extras above zero
+    with the HIAE adjustments). With protocols, it keeps only those services and
+    also returns the ones that already have a complementary CT-e (re-emission).
 
-        if client != "HIAE - HOSPITAL ALBERT EINSTEIN":
-            return max(total_price, 0)
-        else:
-            service_collect_qty = services_billing.loc[
-                services_billing['protocol'] == prot_number, 'serviceSourceAddressQty'
-            ].values.item()
-            service_collect_qty = int(service_collect_qty)
-            service_budget_qty = services_billing.loc[
-                services_billing['protocol'] == prot_number, 'budgetSourceAddressQty'
-            ].values.item()
-            service_budget_qty = int(service_budget_qty)
-            add_collect = service_collect_qty - service_budget_qty
-
-            if add_collect <= 0:
-
-                return 0
-
-            else:
-                collect_dict_list = sv.loc[sv['protocol'] == prot_number, 'serviceIDCollect'].values.item()
-                success_value = sv.loc[
-                    sv['protocol'] == prot_number, 'serviceIDRequested.budgetIDService.price_add_collect'
-                ].values.item()
-                unsuccessful_value = sv.loc[
-                    sv['protocol'] == prot_number, 'serviceIDRequested.budgetIDService.price_unsuccessful_collect'
-                ].values.item()
-                total_mod_price = 0
-                for collect_dict in collect_dict_list:
-                    collect_step = collect_dict.get('step', np.nan)
-                    collect_price = success_value if collect_step == 'DONE' else unsuccessful_value
-                    total_mod_price += collect_price
-                total_add_price = total_mod_price - success_value
-
-                return max(total_add_price, 0)
-
-    def hiae_dry_ice_cost(prot_number):
-
-        client = report.loc[report['PROTOCOLO'] == prot_number, 'CLIENTE'].values.item()
-        total_price = report.loc[
-            report['PROTOCOLO'] == prot_number, 'VALOR COLETAS ADICIONAIS AJUSTADO'
-        ].values.item()
-
-        if client != "HIAE - HOSPITAL ALBERT EINSTEIN":
-            return max(total_price, 0)
-
-        dry_ice_qty = sv.loc[sv['protocol'] == prot_number, 'serviceIDRequested.gelo_seco'].values.item()
-        budget_id = sv.loc[sv['protocol'] == prot_number, 'serviceIDRequested.budget_id'].values.item()
-
-        if dry_ice_qty != 0 and budget_id in ['7f6b2c38-8fb1-47b7-a72e-2fa8acd73958', 'feffe85b-54cd-4ffa-9d2b-9e826422f26f']:
-            add_collect_price = sv.loc[sv['protocol'] == prot_number, 'serviceIDRequested.price_add_collect'].values.item()
-            new_price = total_price - add_collect_price + 60
-            return max(new_price, 0)
-        else:
-            return max(total_price, 0)
-
-    # def get_address_cnpj(add_list):
-    #     _cnpj_list = []
-    #     for add in add_list:
-    #         cnpj = address.loc[address['id'] == add, 'cnpj_cpf'].values.item()
-    #         _cnpj_list.append(cnpj)
-    #     return _cnpj_list
-
-    def get_address_city(add):
-        add_lenght = len(add)
-        add_total = []
-        count = 0
-        cities = ''
-        for i in range(add_lenght):
-            add_city = address.loc[address['id'] == add[i], 'cityIDAddress.name'].values.item()
-            add_total.append(add_city)
-        add_total = np.unique(add_total)
-        for w in add_total:
-            if count == 0:
-                cities = w
-            elif count == len(add_total) - 1:
-                cities += ', ' + w
-            else:
-                cities += ', ' + w
-            count += 1
-        return cities
-
-    def get_address_city_listed(add_list):
-        _cities_list = []
-        for add in add_list:
-            add_city = address.loc[address['id'] == add, 'cityIDAddress.name'].values.item()
-            _cities_list.append(add_city)
-        cities_list = np.unique(_cities_list)
-        return cities_list
-
-    # def materials_value(mat_list, price):
-    #     price_list = [5, 5, 10, 10, 12.5, 12.5, 0, price]
-    #     total_price = 0
-    #     for material, mat_price in zip(mat_list, price_list):
-    #         total_price += material * mat_price
-    #     return total_price
-    #
-    # def materials_description(mat_list):
-    #     mat_description = ""
-    #     count = 0
-    #     description_list = ['Embalagem secundária', 'Gelox', 'Isopor 3L', 'Terciária 3L', 'Isopor 7L', 'Terciária 8L',
-    #                         'Caixa térmica', 'Gelo Seco', 'Pote 1L']
-    #     for material in mat_list:
-    #         if material == 0:
-    #             count += 1
-    #             pass
-    #         else:
-    #             mat_description += f'{material} {description_list[count]}\n'
-    #             count += 1
-    #     mat_description = mat_description.strip("\n")
-    #     return mat_description
-
-    # def get_material_price(provider_id):
-    #     try:
-    #         dry_ice_price = provider.loc[provider['id'] == provider_id, 'material_price'].values.item()
-    #     except ValueError:
-    #         dry_ice_price = 0
-    #     return dry_ice_price
-
-    now = dt.datetime.now()
-    now_date = dt.datetime.strftime(start_date, '%d-%m-%Y')
-    now = dt.datetime.strftime(now, "%H-%M")
-
-    di = dt.datetime.strftime(start_date, '%d/%m/%Y')
-    df = dt.datetime.strftime(final_date, '%d/%m/%Y')
-
-    di_dt = dt.datetime.strptime(di, '%d/%m/%Y')
-    df_dt = dt.datetime.strptime(df, '%d/%m/%Y')
-
-    di_temp = di_dt - dt.timedelta(days=5)
-    df_temp = df_dt + dt.timedelta(days=5)
-
-    di = dt.datetime.strftime(di_temp, '%d/%m/%Y')
-    df = dt.datetime.strftime(df_temp, '%d/%m/%Y')
-
-    di_formatted = dt.datetime.strftime(di_temp, '%Y-%m-%d')
-    df_formatted = dt.datetime.strftime(df_temp, '%Y-%m-%d')
-
-    pl = {
-        "customer_id": None,
-        "startDate": f"{di_formatted}",
-        "endDate": f"{df_formatted}",
+    Raises RuntimeError with the backend message when the request is refused.
+    """
+    params = {
+        'initialDate': dt.datetime.strftime(start_date, '%Y-%m-%d'),
+        'finalDate': dt.datetime.strftime(final_date, '%Y-%m-%d'),
     }
+    if protocols:
+        params['protocols'] = ','.join(str(protocol) for protocol in protocols)
 
-    print("Requisitando relatório de faturamento")
-
-    services_billing = _get_r().request_private(
-        link='https://transportebiologico.com.br/api/report/billing/data',
-        request_type='post',
-        payload=pl,
-        nested=True
+    r = _get_r()
+    response = r._session.get(
+        CTE_COMPLEMENTARY_EMISSION_URL,
+        headers={**r.headers, **r.auth},
+        params=params,
     )
 
-    print("Requisitando tabelas principais")
+    if not response.ok:
+        try:
+            message = response.json().get('message')
+        except ValueError:
+            message = None
+        raise RuntimeError(message or f'HTTP {response.status_code}')
 
-    address = _get_r().request_public('https://transportebiologico.com.br/api/public/address')
-    services_ongoing = _get_r().request_public('https://transportebiologico.com.br/api/public/service')
-    services_finalized = _get_r().request_public(
-        link=f'https://transportebiologico.com.br/api/public/service/finalized/?startFilter={di}&endFilter={df}',
-        request_type='post'
+    return response.json().get('services', [])
+
+
+def _format_collect_date(value):
+    if not value:
+        return ''
+    return (pd.to_datetime(value) - dt.timedelta(hours=3)).strftime('%d/%m/%Y')
+
+
+def _build_complementary_report(services):
+    """Build the conference spreadsheet with the columns operators already use."""
+    rows = []
+    for service in services:
+        billing = service.get('billing') or {}
+        customer = service.get('customer') or {}
+        breakdown = service.get('extra_breakdown') or {}
+        rows.append({
+            'PROTOCOLO': service['protocol'],
+            'CLIENTE': customer.get('trading_firstname', ''),
+            'ETAPA': billing.get('step'),
+            'TIPO DE SERVIÇO': billing.get('serviceType'),
+            'DATA COLETA': _format_collect_date(service.get('collect_date')),
+            'CIDADE ORIGEM': billing.get('sourceCity'),
+            'CIDADE DESTINO': billing.get('destinationCity'),
+            'CTE LOGLIFE': service.get('cte_loglife'),
+            'VALOR DO ORÇAMENTO': billing.get('budgetPrice'),
+            'FRANQUIA': billing.get('franchising'),
+            'PESO TAXADO NO SERVIÇO': billing.get('taxedWeight'),
+            'VOLUME EMBARQUE': billing.get('boardVolume'),
+            'VALOR KG EXTRA': billing.get('extraKGPrice'),
+            'VALOR TOTAL KG EXTRA': billing.get('totalExtraKGPrice'),
+            'QTD. END. ORIGEM NO SERVIÇO': billing.get('serviceSourceAddressQty'),
+            'QTD. END. ORIGEM NO ORÇAMENTO': billing.get('budgetSourceAddressQty'),
+            'VALOR COLETA ADICIONAL': billing.get('addCollectPrice'),
+            'VALOR TOTAL COLETAS ADICIONAIS': float(billing.get('totalAdditionalCollects') or 0),
+            'VALOR COLETAS ADICIONAIS AJUSTADO': breakdown.get('additional_collects'),
+            'QTD. END. DESTINO NO SERVIÇO': billing.get('serviceDestinationAddressQty'),
+            'QTD. END. DESTINO NO ORÇAMENTO': billing.get('budgetDestinationAddressQty'),
+            'VALOR ENTREGA ADICIONAL': billing.get('addDeliveryPrice'),
+            'VALOR TOTAL ENTREGAS ADICIONAIS': float(billing.get('totalAdditionalDeliveries') or 0),
+            'NOME REMETENTE': billing.get('sourceAddress'),
+            'NOME DESTINATÁRIO': billing.get('destinationAddress'),
+            'MATERIAL EXTRA (CLIENTE)': billing.get('infoExtraMaterials'),
+            'CUSTO TOTAL MATERIAL EXTRA (CLIENTE)': billing.get('totalCostExtraMaterials'),
+            'PREÇO COLETA SEM SUCESSO': billing.get('unsuccessPrice'),
+            'VALOR TOTAL DO EXTRA': float(service['extra_value']),
+            'OBSERVAÇÕES': billing.get('observation'),
+        })
+    return pd.DataFrame(rows)
+
+
+def cte_complimentary(start_date, final_date, cte_comp_path, cte_folder, root, unique=False, cte_cs=""):
+    """
+    Emit complementary CT-es for the extras (additional collects/deliveries,
+    extra kg, extra materials) of services whose normal CT-e was already issued.
+
+    Eligibility and the extra value come from
+    GET /api/public/service/cte-emission-complementary. With unique=True
+    ("Emitir Avulso") only the protocols typed in cte_cs are emitted, even when
+    they already have a complementary CT-e.
+    """
+    protocols = None
+    if unique:
+        try:
+            protocols = _parse_protocol_selection(cte_cs)
+        except ValueError:
+            confirmation_pop_up(root, "Protocolos inválidos. Separe os protocolos com ';'.")
+            return
+        if not protocols:
+            confirmation_pop_up(root, "Informe ao menos um protocolo para a emissão avulsa.")
+            return
+
+    print("Requisitando serviços elegíveis para CTe complementar")
+
+    try:
+        services = _fetch_complementary_cte_services(start_date, final_date, protocols)
+    except (requests.exceptions.RequestException, RuntimeError, ValueError) as e:
+        print(f"Error fetching services for complementary CTE emission: {e}")
+        traceback.print_exc()
+        confirmation_pop_up(root, f"Erro ao buscar serviços para CTe complementar:\n{e}")
+        return
+
+    returned_protocols = {service['protocol'] for service in services}
+    not_eligible = [protocol for protocol in (protocols or []) if protocol not in returned_protocols]
+    not_eligible_text = (
+        '\n\nProtocolos não elegíveis: ' + ', '.join(str(protocol) for protocol in not_eligible)
+        if not_eligible else ''
     )
+    if not_eligible:
+        print(f"Protocols not eligible for complementary CTE: {not_eligible}")
 
-    sv = pd.concat([services_ongoing, services_finalized], ignore_index=True)
+    print(f"Found {len(services)} services for complementary CTE emission")
 
-    sv = sv[sv['is_business'] == False]
+    if not services:
+        confirmation_pop_up(
+            root,
+            "Nenhum serviço encontrado para emissão de CTe complementar no período selecionado."
+            + not_eligible_text
+        )
+        return
 
-    # provider = _get_r().request_private('https://transportebiologico.com.br/api/provider')  # FORNECEDOR DE GELO SECO
+    report = _build_complementary_report(services)
 
-    df_dt += dt.timedelta(days=1)
-    sv.drop(sv[sv['customerIDService.emission_type'] == 'NF'].index, inplace=True)
-    sv['collectDateTime'] = pd.to_datetime(sv['serviceIDRequested.collect_date']) - dt.timedelta(hours=3)
-    sv['collectDateTime'] = sv['collectDateTime'].dt.tz_localize(None)
-
-    services_billing['collectDateTime'] = pd.to_datetime(
-        services_billing['collectDate']
-    ) - dt.timedelta(hours=3)
-    services_billing['collectDateTime'] = services_billing['collectDateTime'].dt.tz_localize(None)
-
-    sv.drop(sv[sv['collectDateTime'] < di_dt].index, inplace=True)
-    sv.drop(sv[sv['collectDateTime'] > df_dt].index, inplace=True)
-    if unique is False:
-        sv = pd.concat([
-            sv[sv['cte_complementary'].isnull()],
-            sv[sv['cte_complementary'] == 'nan'],
-            sv[sv['cte_complementary'] == '-']
-                        ], ignore_index=True)
-    # sv.drop(sv[sv['customerIDService.trading_firstname'] == "HPV - HOSPITAL MOINHOS DE VENTO"].index, inplace=True)
-    sv = sv[(sv['cte_loglife'].notnull()) &
-            (sv['cte_loglife'] != 'nan') &
-            (sv['cte_loglife'] != '-') &
-            (sv['step'] != 'toCollectService') &
-            (sv['step'] != 'collectingService') &
-            (sv['step'] != 'toBoardService') &
-            (sv['step'] != 'boardingService') &
-            (sv['step'] != 'toBoardValidate')]
-
-    # # Client list FILTER START.
-    # sv = sv.loc[
-    #     (sv['customerIDService.trading_firstname'] == "CERBA-LCA") |
-    #     (sv['customerIDService.trading_firstname'] == "PROVET") |
-    #     (sv['customerIDService.trading_firstname'] == "FLOW") |
-    #     (sv['customerIDService.trading_firstname'] == "ALCHEMYPET MEDICINA DIAGNÓSTICA VETERINÁRIA LTDA.") |
-    #     (sv['customerIDService.trading_firstname'] == "LEMOS LABORATORIOS") |
-    #     (sv['customerIDService.trading_firstname'] == "LABORATÓRIO KTZ") |
-    #     (sv['customerIDService.trading_firstname'] == "NORDD PATOLOGIA")
-    # ]
-    # # Client list FILTER END.
-
-    sv['origCityList'] = sv['serviceIDRequested.source_address_id'].map(get_address_city_listed)
-    sv['destCityList'] = sv['serviceIDRequested.destination_address_id'].map(get_address_city_listed)
-    sv['origCity'] = sv['serviceIDRequested.source_address_id'].map(get_address_city)
-    sv['destCity'] = sv['serviceIDRequested.destination_address_id'].map(get_address_city)
-
-    sv.sort_values(
-        by="protocol", axis=0, ascending=True, inplace=True, kind='quicksort', na_position='last'
-    )
-
-    services_billing.sort_values(
-        by="protocol", axis=0, ascending=True, inplace=True, kind='quicksort', na_position='last'
-    )
-
-    print(sv)
-
-    services_billing = services_billing[services_billing['protocol'].isin(sv['protocol'])]
-    sv = sv[sv['protocol'].isin(services_billing['protocol'])]
-
-    services_billing.to_excel('Billing.xlsx', index=False)
-
-    sv['NOME REMETENTE'] = sv['serviceIDRequested.source_address_id'].map(get_address_name)
-    sv['NOME DESTINATÁRIO'] = sv['serviceIDRequested.destination_address_id'].map(get_address_name)
-
-    services_billing['CTE LOGLIFE'] = services_billing['protocol'].map(get_cte_number)
-    services_billing['totalAdditionalCollects'] = services_billing['totalAdditionalCollects'].astype(float)
-
-    # Materials
-
-    # mt = pd.DataFrame(columns=[])
-    #
-    # sv['priceDryIce'] = sv['serviceIDRequested.provider_id'].map(get_material_price)
-    #
-    # materials = ['embalagem_secundaria',
-    #              'gelox',
-    #              'isopor3l',
-    #              'terciaria3l',
-    #              'isopor7l',
-    #              'terciaria8l',
-    #              'caixa_termica',
-    #              'gelo_seco']
-    #
-    # for mat in materials:
-    #     mt[f'{mat}Extra'] = sv[f'serviceIDRequested.{mat}'] - sv[f'serviceIDRequested.budgetIDService.{mat}']
-    #     mt[f'{mat}Extra'] = np.where(mt[f'{mat}Extra'] < 0, 0, mt[f'{mat}Extra'])
-    #
-    # extra_list = []
-    #
-    # for rows in mt.itertuples():
-    #     extram_list = [rows.embalagem_secundariaExtra,
-    #                    rows.geloxExtra,
-    #                    rows.isopor3lExtra,
-    #                    rows.terciaria3lExtra,
-    #                    rows.isopor7lExtra,
-    #                    rows.terciaria8lExtra,
-    #                    rows.caixa_termicaExtra,
-    #                    rows.gelo_secoExtra]
-    #
-    #     extra_list.append(extram_list)
-    #
-    # sv = sv.assign(extraMaterials=extra_list)
-
-    report = pd.DataFrame(columns=[])
-
-    report['PROTOCOLO'] = services_billing['protocol']
-    report['CLIENTE'] = services_billing['customer']
-    report['ETAPA'] = services_billing['step']
-    report['TIPO DE SERVIÇO'] = services_billing['serviceType']
-    report['DATA COLETA'] = services_billing['collectDateTime'].dt.strftime(date_format='%d/%m/%Y')
-    report['CIDADE ORIGEM'] = services_billing['sourceCity']
-    report['CIDADE DESTINO'] = services_billing['destinationCity']
-    report['CTE LOGLIFE'] = services_billing['CTE LOGLIFE']
-    report['VALOR DO ORÇAMENTO'] = services_billing['budgetPrice']
-    report['FRANQUIA'] = services_billing['franchising']
-    report['PESO TAXADO NO SERVIÇO'] = services_billing['taxedWeight']
-    report['VOLUME EMBARQUE'] = services_billing['boardVolume']
-    # sv['VALOR TOTAL KG EXTRA'] = np.ceil(
-    #     (sv['PESO TAXADO NO SERVIÇO'] - sv['FRANQUIA'])
-    # ) * sv['VALOR KG EXTRA']
-    # sv['VALOR TOTAL KG EXTRA'] = np.where(
-    #     sv['VALOR TOTAL KG EXTRA'] < 0, 0, sv['VALOR TOTAL KG EXTRA'])
-    report['VALOR KG EXTRA'] = services_billing['extraKGPrice']
-    report['VALOR TOTAL KG EXTRA'] = services_billing['totalExtraKGPrice']
-    report['QTD. END. ORIGEM NO SERVIÇO'] = services_billing['serviceSourceAddressQty']
-    report['QTD. END. ORIGEM NO ORÇAMENTO'] = services_billing['budgetSourceAddressQty']
-    report['VALOR COLETA ADICIONAL'] = services_billing['addCollectPrice']
-    report['VALOR TOTAL COLETAS ADICIONAIS'] = services_billing['totalAdditionalCollects'].astype(float)
-    report['VALOR COLETAS ADICIONAIS AJUSTADO'] = report['PROTOCOLO'].map(hiae_additional_cost)
-    report['VALOR COLETAS ADICIONAIS AJUSTADO'] = report['PROTOCOLO'].map(hiae_dry_ice_cost)
-    report['QTD. END. DESTINO NO SERVIÇO'] = services_billing['serviceDestinationAddressQty']
-    report['QTD. END. DESTINO NO ORÇAMENTO'] = services_billing['budgetDestinationAddressQty']
-    report['VALOR ENTREGA ADICIONAL'] = services_billing['addDeliveryPrice']
-    report['VALOR TOTAL ENTREGAS ADICIONAIS'] = services_billing['totalAdditionalDeliveries'].astype(float)
-    report['NOME REMETENTE'] = services_billing['sourceAddress']
-    report['NOME DESTINATÁRIO'] = services_billing['destinationAddress']
-    # sv['MATERIAL EXTRA (CLIENTE)'] = sv['extraMaterials'].map(materials_description)
-    report['MATERIAL EXTRA (CLIENTE)'] = services_billing['infoExtraMaterials']
-    # sv['CUSTO TOTAL MATERIAL EXTRA (CLIENTE)'] = sv.apply(
-    #     lambda x: materials_value(x.extraMaterials, x.priceDryIce), axis=1)
-    report['CUSTO TOTAL MATERIAL EXTRA (CLIENTE)'] = services_billing['totalCostExtraMaterials']
-    report['PREÇO COLETA SEM SUCESSO'] = services_billing['unsuccessPrice']
-    # sv['VALOR TOTAL DO EXTRA'] = sv['CUSTO TOTAL MATERIAL EXTRA (CLIENTE)'] + sv['VALOR TOTAL COLETAS ADICIONAIS'] \
-    #                              + sv['VALOR TOTAL ENTREGAS ADICIONAIS'] + sv['VALOR TOTAL KG EXTRA']
-    report['VALOR TOTAL DO EXTRA'] = services_billing['additionalChargesTotalValue'].str.lstrip("R$ ").astype(float)
-    report['VALOR TOTAL DO EXTRA'] = report['VALOR TOTAL DO EXTRA'] - report['VALOR TOTAL COLETAS ADICIONAIS'] + report['VALOR COLETAS ADICIONAIS AJUSTADO']
-    report['OBSERVAÇÕES'] = services_billing['observation']
-    sv['VALOR TOTAL DO EXTRA'] = services_billing['additionalChargesTotalValue'].str.lstrip("R$ ").astype(float)
-    sv['VALOR TOTAL DO EXTRA'] = np.where(sv['VALOR TOTAL DO EXTRA'] < 0,
-                                          0,
-                                          sv['VALOR TOTAL DO EXTRA'])
-
-    report = report[report['VALOR TOTAL DO EXTRA'] != 0]
-
-    # report = sv[[
-    #     'PROTOCOLO',
-    #     'CLIENTE',
-    #     'ETAPA',
-    #     'TIPO DE SERVIÇO',
-    #     'DATA COLETA',
-    #     'CIDADE ORIGEM',
-    #     'CTE LOGLIFE',
-    #     'VALOR DO ORÇAMENTO',
-    #     'FRANQUIA',
-    #     'PESO TAXADO NO SERVIÇO',
-    #     'VOLUME EMBARQUE',
-    #     'VALOR KG EXTRA',
-    #     'VALOR TOTAL KG EXTRA',
-    #     'QTD. END. ORIGEM NO SERVIÇO',
-    #     'QTD. END. ORIGEM NO ORÇAMENTO',
-    #     'VALOR COLETA ADICIONAL',
-    #     'VALOR TOTAL COLETAS ADICIONAIS',
-    #     'QTD. END. DESTINO NO SERVIÇO',
-    #     'QTD. END. DESTINO NO ORÇAMENTO',
-    #     'VALOR ENTREGA ADICIONAL',
-    #     'VALOR TOTAL ENTREGAS ADICIONAIS',
-    #     'NOME REMETENTE',
-    #     'NOME DESTINATÁRIO',
-    #     'MATERIAL EXTRA (CLIENTE)',
-    #     'CUSTO TOTAL MATERIAL EXTRA (CLIENTE)',
-    #     'VALOR TOTAL DO EXTRA',
-    #     'OBSERVAÇÕES'
-    # ]].copy()
+    now_date = dt.datetime.strftime(start_date, '%d-%m-%Y')
+    now = dt.datetime.strftime(dt.datetime.now(), "%H-%M")
 
     cte_comp_path = cte_comp_path.replace('/', '\\')
 
-    if unique:
-        protocol_entry = cte_cs
-        protocol_list = protocol_entry.split(";")
-        integer_map = map(int, protocol_list)
-        protocol_list = list(integer_map)
-        report = report[report['PROTOCOLO'].isin(protocol_list)]
-    else:
-        protocol_list = report['PROTOCOLO'].to_list()
-
     excel_file = f'{cte_comp_path}\\CTE complementar-{now_date}-{now}.xlsx'
-    csv_file = f'{cte_comp_path}\\Upload complementar-{now_date}-{now}.csv'
     csv_associate = f'{cte_comp_path}\\Associar complementar-{now_date}-{now}.csv'
 
     cte_folder_path = cte_folder.replace('/', '\\')
@@ -1498,26 +1254,21 @@ def cte_complimentary(start_date, final_date, cte_comp_path, cte_folder, root, u
 
     bot_cte = bot.Bot()
 
-    # bot_cte.open_bsoft(path=filename.get(), login=login.get(), password=password.get())
-    current_row = 0
+    for report_index, service in zip(report.index, services):
 
-    for protocol in protocol_list:
-
+        protocol = service['protocol']
         report_date = dt.datetime.strftime(dt.datetime.now(), '%d/%m/%Y')
 
-        # tomador_cnpj = sv.loc[sv['protocol'] == protocol, 'customerIDService.cnpj_cpf'].values.item()
-        source_add = sv.loc[sv['protocol'] == protocol, 'serviceIDRequested.source_address_id'].values.item()
-        destination_add = sv.loc[sv['protocol'] == protocol, 'serviceIDRequested.destination_address_id'].values.item()
-        valor = str(report.loc[report['PROTOCOLO'] == protocol, 'VALOR TOTAL DO EXTRA'].values.item())
-        uf1 = address.loc[address['id'] == source_add[0], 'state'].values.item()
-        uf2 = address.loc[address['id'] == destination_add[0], 'state'].values.item()
-        # cnpj_remetente = get_address_cnpj(source_add)
-        # cnpj_destinatario = get_address_cnpj(destination_add)
+        source_addresses = service.get('source_addresses') or []
+        destination_addresses = service.get('destination_addresses') or []
+        valor = str(float(service['extra_value']))
+        uf1 = source_addresses[0].get('state', '') if source_addresses else ''
+        uf2 = destination_addresses[0].get('state', '') if destination_addresses else ''
         uf_rem = _get_uf_base().loc[_get_uf_base()['Estado'] == uf1, 'UF'].values.item()
         uf_dest = _get_uf_base().loc[_get_uf_base()['Estado'] == uf2, 'UF'].values.item()
         icms_obs = _get_uf_base().loc[_get_uf_base()['Estado'] == uf_rem, 'Info'].values.item()
         aliq = _get_aliquota_base().loc[_get_aliquota_base()['UF'] == uf_rem, uf_dest].values.item()
-        cte = sv.loc[sv['protocol'] == protocol, 'cte_loglife'].values.item()
+        cte = service['cte_loglife']
         obs_text = f'Protocolo {protocol} - {icms_obs}'
         aliq_text = float(aliq) * float(valor) * 0.008
         aliq_text = "{:0.2f}".format(aliq_text)
@@ -1541,7 +1292,7 @@ def cte_complimentary(start_date, final_date, cte_comp_path, cte_folder, root, u
         )
 
         cte_llm_complimentary = int(bot_cte.get_clipboard())
-        
+
         payload = {
             "data": [
                 {
@@ -1551,15 +1302,14 @@ def cte_complimentary(start_date, final_date, cte_comp_path, cte_folder, root, u
                 }
             ]
         }
-        
+
         _get_r().request_private(
             link="https://transportebiologico.com.br/api/uploads/cte-complementary/json",
             request_type="post",
             payload=payload,
             json=True
-        
         )
-        report.at[report.index[current_row], 'CTE Complementar'] = cte_llm_complimentary
+        report.at[report_index, 'CTE Complementar'] = cte_llm_complimentary
 
         cte_file = f'{str(cte_llm_complimentary).zfill(8)}.pdf'
 
@@ -1571,26 +1321,26 @@ def cte_complimentary(start_date, final_date, cte_comp_path, cte_folder, root, u
         report.to_excel(excel_file, index=False)
 
         cte_csv.to_csv(csv_associate, index=False, encoding='utf-8')
-        
+
         while True:
             try:
                 _get_r().post_file("https://transportebiologico.com.br/api/pdf",
-                                              f'{cte_folder_path}\\{cte_file}',
-                                              upload_type="CTE COMPLEMENTAR",
-                                              file_format="application/pdf",
-                                              file_type="pdf_files")
+                                   f'{cte_folder_path}\\{cte_file}',
+                                   upload_type="CTE COMPLEMENTAR",
+                                   file_format="application/pdf",
+                                   file_type="pdf_files")
                 break
             except FileNotFoundError:
                 time.sleep(0.5)
                 continue
 
         _get_r().post_file('https://transportebiologico.com.br/api/pdf/associate',
-                                     csv_associate,
-                                     upload_type="CTE COMPLEMENTAR")
+                           csv_associate,
+                           upload_type="CTE COMPLEMENTAR")
 
-        current_row += 1
+        os.remove(csv_associate)
 
-    confirmation_pop_up(root, 'Emissões de CTe complementar finalizadas!')
+    confirmation_pop_up(root, 'Emissões de CTe complementar finalizadas!' + not_eligible_text)
 
 
 def cte_unique(cal_date, cte_path, cte_folder_path, cte_type, cte_s, volumes, root):
