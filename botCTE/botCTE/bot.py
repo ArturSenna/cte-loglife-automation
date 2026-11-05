@@ -22,43 +22,68 @@ class Bot(DesktopBot):
     def type_text_char_by_char(self, text, wait_time=80):
         pyautogui.write(str(text), interval=wait_time / 1000)
 
-    # NOT IN USE!
-    def open_bsoft(self, path=None, login=None, password=None):
+    # ------------------------------------------------------------------
+    # Image lookup with "-alt" fallback
+    #
+    # The app layout shrank horizontally, so some elements no longer match
+    # their original screenshot. Any label may have alternative images
+    # named "<label>-alt.png", "<label>-alt2.png", ... in the resources
+    # folder (e.g. the same tab in its selected and unselected look).
+    # find() cycles quickly through the main image and every alternate
+    # until waiting_time runs out, so falling back costs at most
+    # FIND_STEP_MS per attempt, and the image that matched last time is
+    # tried first on the next call.
+    #
+    # NOTE: DesktopBot.__init__ binds self.find = self.find_until on the
+    # instance, so the override must be on find_until (find, findUntil and
+    # findLastUntil all end up here).
+    # ------------------------------------------------------------------
+    ALT_SUFFIX = "-alt"
+    FIND_STEP_MS = 400
+    _alt_labels = {}   # label -> tuple of existing alternates ("<label>-alt", "<label>-alt2", ...)
+    _preferred = {}    # label -> image that matched last time (tried first)
 
-        # Open Bsoft
-        self.execute(path)
+    def _alt_labels_for(self, label):
+        """Return the alternate image labels that exist for `label` ("-alt", "-alt2", ...)."""
+        if label not in self._alt_labels:
+            alts = []
+            n = 1
+            while True:
+                alt = f"{label}{self.ALT_SUFFIX}{n if n > 1 else ''}"
+                if not self._search_image_file(alt):
+                    break
+                alts.append(alt)
+                n += 1
+            self._alt_labels[label] = tuple(alts)
+        return self._alt_labels[label]
 
-        # Login
-        if not self.find( "User", matching=0.97, waiting_time=120000):
-            self.not_found("User")
-        self.click()
-        self.wait(500)
-        self.paste_text(login)
+    def _alt_label(self, label):
+        """Return the first alternate image label for `label`, or None."""
+        alts = self._alt_labels_for(label)
+        return alts[0] if alts else None
 
-        # Senha
-        if not self.find( "Password", matching=0.97, waiting_time=10000):
-            self.not_found("Password")
-        self.click()
-        self.paste_text(password)
+    def find_until(self, label, x=None, y=None, width=None, height=None, *,
+                   threshold=None, matching=0.9, waiting_time=10000, best=True, grayscale=False):
+        """Same as DesktopBot.find_until, but also tries '<label>-alt', '<label>-alt2', ... when they exist."""
+        kwargs = dict(threshold=threshold, matching=matching, best=best, grayscale=grayscale)
+        alts = self._alt_labels_for(label)
+        if not alts:
+            return super().find_until(label, x, y, width, height, waiting_time=waiting_time, **kwargs)
 
-        # Enter
-        if not self.find( "loginFinish", matching=0.97, waiting_time=100000):
-            self.not_found("loginFinish")
-        self.click()
-
-        # Close Inbox and confirm
-        if not self.find( "close_inbox", matching=0.97, waiting_time=60000):
-            self.not_found("close_inbox")
-        self.click()
-
-        if not self.find( "confirm_exit", matching=0.97, waiting_time=100000):
-            self.not_found("confirm_exit")
-        self.click()
-
-        # Start emission
-        if not self.find( "Emissão", matching=0.97, waiting_time=100000):
-            self.not_found("Emissão")
-        self.click()
+        candidates = (label,) + alts
+        first = self._preferred.get(label, label)
+        order = (first,) + tuple(c for c in candidates if c != first)
+        deadline = time.monotonic() + waiting_time / 1000.0
+        while True:
+            for candidate in order:
+                remaining_ms = max(0, int((deadline - time.monotonic()) * 1000))
+                element = super().find_until(candidate, x, y, width, height,
+                                             waiting_time=min(self.FIND_STEP_MS, remaining_ms), **kwargs)
+                if element:
+                    self._preferred[label] = candidate
+                    return element
+            if time.monotonic() >= deadline:
+                return None
 
     def action(self,
                execution=None,
@@ -173,9 +198,15 @@ class Bot(DesktopBot):
             self.type_up()
             self.enter()
 
+        # "Nat" and "Weight1" are the field *labels* (the inputs below them may
+        # still hold the previous emission's values, which would break a
+        # label+field image). Click into the field just below the label and
+        # select all before pasting so the old value is replaced.
         if not self.find( "Nat", matching=0.97, waiting_time=10000):
             self.not_found("Nat")
-        self.click()
+        x, y, w, h = self.get_last_element()
+        self.click_at(x + w // 2, y + 1.5 * h)
+        self.control_a()
         self.paste_text('MATERIAL BIOLÓGICO')
         self.enter()
 
@@ -184,25 +215,21 @@ class Bot(DesktopBot):
 
         if not self.find( "Weight1", matching=0.97, waiting_time=10000):
             self.not_found("Weight1")
-        self.click()
-        if cte_instance is None:
-            self.paste_text(str(int(volumes) * 2))
+        x, y, w, h = self.get_last_element()
+        self.click_at(x + w // 2, y + 1.5 * h)
+        if cte_instance is None or cte_instance == 1:
+            self.control_a()
+            self.paste_text(str(int(volumes) * 2))   # Peso
             self.tab()
-            self.paste_text(str(int(volumes) * 2))
+            self.control_a()
+            self.paste_text(str(int(volumes) * 2))   # Peso Aferido
             self.tab()
-            self.paste_text(str(int(volumes) * 2))
-            self.tab()
-            self.tab(wait=500)
-            self.type_keys(str(volumes))
-        if cte_instance == 1:
-            self.paste_text(str(int(volumes) * 2))
-            self.tab()
-            self.paste_text(str(int(volumes) * 2))
-            self.tab()
-            self.paste_text(str(int(volumes) * 2))
+            self.control_a()
+            self.paste_text(str(int(volumes) * 2))   # Cubagem
             self.tab()
             self.tab(wait=500)
-            self.type_keys(str(volumes))
+            self.control_a()
+            self.type_keys(str(volumes))             # Volumes
 
         if not self.find( "confirmNAT", matching=0.97, waiting_time=10000):
             self.not_found("confirmNAT")
@@ -253,7 +280,7 @@ class Bot(DesktopBot):
         self.click()
 
         if not self.find( "selectAll", matching=0.97, waiting_time=60000):
-            self.not_found("findCTe")
+            self.not_found("selectAll")
         self.click()
 
         time.sleep(0.3)
@@ -277,7 +304,7 @@ class Bot(DesktopBot):
         self.click()
 
         if not self.find( "valueShipping22", matching=0.97, waiting_time=10000):
-            self.not_found("confirmNAT")
+            self.not_found("valueShipping22")
         self.click()
 
         self.tab()
