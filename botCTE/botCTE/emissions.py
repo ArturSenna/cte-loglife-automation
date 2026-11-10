@@ -50,6 +50,37 @@ def _get_aliquota_base():
     return _aliquota_base
 
 
+def _resolve_cte_number(bot_cte, protocol):
+    """Number of the CT-e that bot_cte.part4() has just emitted.
+
+    part4() copies the number from Bsoft with retries. If that still failed,
+    the CT-e is already authorized, so ask the operator for the number instead
+    of losing it and leaving the protocol without a CT-e in the API.
+    """
+    number = getattr(bot_cte, 'last_cte_number', None)
+    if number is not None:
+        return number
+
+    print(f"[WARN] Número do CT-e não foi copiado do Bsoft (protocolo {protocol}). Solicitando ao operador.")
+    message = (
+        f"Não foi possível copiar o número do CT-e que acabou de ser emitido (protocolo {protocol}).\n\n"
+        "O CT-e já foi autorizado. Digite o número que aparece no campo \"Nº CT-e\" do Bsoft "
+        "para continuar a emissão:"
+    )
+    prompt = message
+    while True:
+        typed = ask_text_dialog('Número do CT-e', prompt)
+        if typed is None:
+            raise RuntimeError(
+                f"CT-e emitido para o protocolo {protocol}, mas o número não foi copiado nem informado. "
+                "Lance o número manualmente antes de emitir novamente."
+            )
+        digits = typed.strip()
+        if digits.isascii() and digits.isdigit():
+            return int(digits)
+        prompt = f"\"{typed}\" não é um número válido. Digite apenas os dígitos.\n\n{message}"
+
+
 def _read_conferencia_tomador_default_column():
     try:
         with open(CONFERENCIA_TOMADOR_COLUMN_CONFIG, 'r', encoding='utf-8') as config_file:
@@ -1038,7 +1069,7 @@ def cte_list(start_date, final_date, folderpath, cte_folder, root):
             price=valor
         )
 
-        cte_llm = int(bot_cte.get_clipboard())
+        cte_llm = _resolve_cte_number(bot_cte, protocol)
 
         report.at[report.index[current_row], 'CTE LOGLIFE'] = cte_llm
         
@@ -1291,7 +1322,7 @@ def cte_complimentary(start_date, final_date, cte_comp_path, cte_folder, root, u
             complimentary=True
         )
 
-        cte_llm_complimentary = int(bot_cte.get_clipboard())
+        cte_llm_complimentary = _resolve_cte_number(bot_cte, protocol)
 
         payload = {
             "data": [
@@ -1689,7 +1720,7 @@ def cte_unique(cal_date, cte_path, cte_folder_path, cte_type, cte_s, volumes, ro
             price=valor
         )
 
-        cte_llm = int(bot_cte.get_clipboard())
+        cte_llm = _resolve_cte_number(bot_cte, protocol)
 
         cte_file = f'{str(cte_llm).zfill(8)}.pdf'
         
@@ -2026,7 +2057,7 @@ def cte_symbolic(start_date, final_date, folderpath, cte_folder, root):
             price=valor
         )
 
-        cte_llm = int(bot_cte.get_clipboard())
+        cte_llm = _resolve_cte_number(bot_cte, protocol)
         
         cte_file = f'{str(cte_llm).zfill(8)}.pdf'
         
@@ -2444,7 +2475,7 @@ def cte_list_unified(start_date, final_date, folderpath, cte_folder, root):
             price=valor
         )
 
-        cte_llm = int(bot_cte.get_clipboard())
+        cte_llm = _resolve_cte_number(bot_cte, protocol)
         
         cte_file = f'{str(cte_llm).zfill(8)}.pdf'
         
@@ -2885,7 +2916,7 @@ def cte_list_grouped(start_date, final_date, folderpath, cte_folder, root):
             price=valor
         )
 
-        cte_llm = int(bot_cte.get_clipboard())
+        cte_llm = _resolve_cte_number(bot_cte, prot_list)
         report.at[current_row, 'CTE LOGLIFE'] = cte_llm
 
         csv_report = pd.DataFrame({

@@ -85,6 +85,33 @@ class Start:
             self.master.after(100, check_thread)
 
 
+def ask_text_dialog(title, message):
+    """Ask the operator for a line of text. Returns it, or None if cancelled.
+
+    Safe to call from a worker thread: like the file pickers in Browse, the
+    dialog runs in a clean subprocess (Base.py handles --ask-text), so it never
+    touches the main Tk loop. It waits for as long as the operator needs.
+    """
+    import subprocess
+    encoded = str(message).replace('\n', '\\n')  # keep the argument on one line
+    if getattr(sys, 'frozen', False):
+        # Frozen build: re-launch same exe in dialog mode
+        args = [sys.executable, '--ask-text', title, encoded]
+    else:
+        args = [sys.executable, os.path.join(_SCRIPT_DIR, 'Base.py'), '--ask-text', title, encoded]
+    try:
+        result = subprocess.run(
+            args,
+            capture_output=True, text=True,
+            creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0),
+        )
+    except Exception as exc:
+        print(f"[ERROR] Não foi possível abrir a janela de entrada: {exc}")
+        return None
+    value = (result.stdout or '').strip()
+    return value or None
+
+
 class Browse:
     """Handles file/folder browsing dialogs and updates the associated StringVar.
 

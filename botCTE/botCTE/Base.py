@@ -12,7 +12,7 @@ Modern redesigned UI for CTe management system
 import sys
 import os
 
-if len(sys.argv) >= 2 and sys.argv[1] in ('--pick-folder', '--pick-file'):
+if len(sys.argv) >= 2 and sys.argv[1] in ('--pick-folder', '--pick-file', '--ask-text'):
     import tkinter as _tk
     from tkinter import filedialog as _fd
     import json as _json
@@ -33,6 +33,47 @@ if len(sys.argv) >= 2 and sys.argv[1] in ('--pick-folder', '--pick-file'):
             pass
 
     _title = sys.argv[2] if len(sys.argv) > 2 else ''
+
+    if sys.argv[1] == '--ask-text':
+        # Always-on-top input box. Prints the typed text, or nothing if cancelled.
+        _message = (sys.argv[3] if len(sys.argv) > 3 else '').replace('\\n', '\n')
+        _answer = []
+
+        def _ok(_event=None):
+            _text = _entry.get().strip()
+            if _text:  # ignore an empty OK; only Cancel closes without a value
+                _answer.append(_text)
+                _root.destroy()
+
+        def _cancel(_event=None):
+            _root.destroy()
+
+        _root.title(_title or 'CTe LogLife')
+        _root.resizable(False, False)
+        _root.attributes('-topmost', True)
+        _tk.Label(_root, text=_message, justify='left', wraplength=440).pack(padx=18, pady=(16, 10))
+        _entry = _tk.Entry(_root, width=24, font=('Segoe UI', 13), justify='center')
+        _entry.pack(padx=18, pady=(0, 12))
+        _buttons = _tk.Frame(_root)
+        _buttons.pack(pady=(0, 16))
+        _tk.Button(_buttons, text='OK', width=12, command=_ok).pack(side='left', padx=6)
+        _tk.Button(_buttons, text='Cancelar', width=12, command=_cancel).pack(side='left', padx=6)
+        _root.bind('<Return>', _ok)
+        _root.bind('<Escape>', _cancel)
+        _root.protocol('WM_DELETE_WINDOW', _cancel)
+        _root.update_idletasks()
+        _root.geometry('+%d+%d' % (
+            (_root.winfo_screenwidth() - _root.winfo_reqwidth()) // 2,
+            (_root.winfo_screenheight() - _root.winfo_reqheight()) // 3,
+        ))
+        _root.deiconify()
+        _root.lift()
+        _root.focus_force()
+        _entry.focus_set()
+        _root.bell()
+        _root.mainloop()
+        print(_answer[0] if _answer else '', end='')
+        sys.exit(0)
 
     if sys.argv[1] == '--pick-folder':
         _path = _fd.askdirectory(parent=_root, title=_title or 'Selecione a pasta')

@@ -1,8 +1,9 @@
 from botcity.core import DesktopBot
-from ctypes import windll
+import re
 import time
 from datetime import datetime, date
 import pyautogui
+import pyperclip
 
 
 # Uncomment the line below for integrations with BotMaestro
@@ -21,6 +22,86 @@ class Bot(DesktopBot):
 
     def type_text_char_by_char(self, text, wait_time=80):
         pyautogui.write(str(text), interval=wait_time / 1000)
+
+    # ------------------------------------------------------------------
+    # Clipboard access with retry
+    #
+    # Only one program can have the Windows clipboard open at a time, and
+    # clipboard history, clipboard-sharing tools and remote-desktop clients
+    # all open it whenever its content changes. pyperclip gives up after
+    # 500 ms, so every read and write here is retried instead of letting a
+    # busy clipboard abort the emission.
+    # ------------------------------------------------------------------
+    CLIPBOARD_RETRY_MS = 5000   # keep retrying a busy clipboard for this long
+    CTE_COPY_ATTEMPTS = 5       # select + Ctrl+C attempts for the CT-e number
+    CTE_COPY_WAIT_MS = 2500     # wait for the number after each Ctrl+C
+
+    last_cte_number = None      # number of the CT-e emitted by the last part4()
+
+    def _clipboard_call(self, func, *args):
+        """Call a clipboard function, retrying while another program holds the clipboard."""
+        deadline = time.monotonic() + self.CLIPBOARD_RETRY_MS / 1000.0
+        while True:
+            try:
+                return func(*args)
+            except pyperclip.PyperclipException:
+                if time.monotonic() >= deadline:
+                    raise
+                time.sleep(0.1)
+
+    def copy_to_clipboard(self, text, wait=0):
+        """Same as DesktopBot.copy_to_clipboard, retried while the clipboard is busy."""
+        self._clipboard_call(super().copy_to_clipboard, str(text), wait)
+
+    def get_clipboard(self):
+        """Same as DesktopBot.get_clipboard, retried while the clipboard is busy."""
+        return self._clipboard_call(super().get_clipboard)
+
+    def clear_clipboard(self):
+        """Empty the clipboard so an old value can never be mistaken for a new copy."""
+        self._clipboard_call(pyperclip.copy, "")
+
+    def _wait_clipboard_number(self, timeout_ms):
+        """Poll the clipboard until it holds only digits. Returns the int, or None on timeout."""
+        deadline = time.monotonic() + timeout_ms / 1000.0
+        while True:
+            try:
+                text = (pyperclip.paste() or "").strip()
+            except pyperclip.PyperclipException:
+                text = ""  # clipboard busy (or empty): poll again
+            if re.fullmatch(r"[0-9]+", text):
+                return int(text)
+            if time.monotonic() >= deadline:
+                return None
+            time.sleep(0.1)
+
+    def copy_cte_number(self):
+        """Copy the number shown in the 'Nº CT-e' field and return it as int.
+
+        This runs right after the CT-e was authorized, so it never raises: it
+        retries the whole select + copy sequence and returns None when the
+        number could not be read, leaving the caller to ask the operator.
+        """
+        for attempt in range(1, self.CTE_COPY_ATTEMPTS + 1):
+            try:
+                if not self.find("clicarCte", matching=0.97, waiting_time=10000 if attempt == 1 else 3000):
+                    self.not_found("clicarCte")
+                    continue
+                x, y, w, h = self.get_last_element()
+                # Clear first: the clipboard still holds the last pasted text, and
+                # only a value that shows up after this point can be the number.
+                self.clear_clipboard()
+                self.double_click_relative(w / 2, 1.5 * h)
+                # Keys only: DesktopBot.control_c() also reads the clipboard, once and without retry.
+                self.control_key("c")
+                number = self._wait_clipboard_number(self.CTE_COPY_WAIT_MS)
+                if number is not None:
+                    return number
+                print(f"[WARN] Número do CT-e não copiado (tentativa {attempt}/{self.CTE_COPY_ATTEMPTS}).")
+            except Exception as exc:
+                print(f"[WARN] Falha ao copiar o número do CT-e (tentativa {attempt}/{self.CTE_COPY_ATTEMPTS}): {exc}")
+            self.wait(500 * attempt)
+        return None
 
     # ------------------------------------------------------------------
     # Image lookup with "-alt" fallback
@@ -104,7 +185,11 @@ class Bot(DesktopBot):
         if cnpj_receiver is None:
             cnpj_receiver = []
 
-        windll.user32.EmptyClipboard()
+        # Start from an empty clipboard. Not fatal if another program has it open.
+        try:
+            self.clear_clipboard()
+        except pyperclip.PyperclipException as exc:
+            print(f"[WARN] Não foi possível limpar a área de transferência: {exc}")
 
         if self.find( "iniciarEmissao", matching=0.97, waiting_time=10):
             self.wait(500)
@@ -299,6 +384,8 @@ class Bot(DesktopBot):
               tp_info=None,
               complimentary=False):
 
+        self.last_cte_number = None
+
         if not self.find( "part4", matching=0.97, waiting_time=30000):
             self.not_found("part4")
         self.click()
@@ -442,15 +529,11 @@ class Bot(DesktopBot):
             self.not_found("fifthPopUp")
         self.key_f10()
         self.wait(2000)
-        if self.find("clicarCte", matching=0.97, waiting_time=10000):
-            x, y, w, h = self.get_last_element()
-            xPos = w / 2
-            yPos = 1.5*h
-            self.double_click_relative(xPos, yPos)
-            self.control_c()
-        else:
-            raise Exception("Elemento 'clicarCte' não encontrado")
+        # The CT-e is authorized at this point. Read its number here, with
+        # retries, and hand it to the caller (None = could not be read).
+        self.last_cte_number = self.copy_cte_number()
         self.wait(2000)
+        return self.last_cte_number
 
         # self.action()
         # Uncomment to mark this task as finished on BotMaestro
