@@ -67,6 +67,7 @@ public class TemplateTests : IDisposable
         Assert.Equal(["icms", "icms-alt", "icms-alt2"], _store.Candidates("icms"));
         Assert.Equal(["valueShipping22", "valueShipping22-alt"], _store.Candidates("valueShipping22"));
         Assert.Equal(["contingencia"], _store.Candidates("contingencia"));
+        Assert.Equal(["9-sucesso", "9-sucesso-alt"], _store.Candidates("9-sucesso"));
         Assert.NotNull(_store.Image("valueShipping22")); // file is "valueShipping22.PNG.png"
         Assert.NotNull(_store.Image("CNPJ_input"));      // file is "CNPJ_input.PNG"
         Assert.NotNull(_store.Image("5.1ct-e"));
@@ -111,6 +112,19 @@ public class TemplateTests : IDisposable
         _screen.Show(_store.Image("icms-alt2")!, 300, 200);
         Assert.True(_bot.Find("icms", 0.97, 10));
         Assert.Equal((300, 200), (_bot.Last.Left, _bot.Last.Top));
+    }
+
+    [Fact]
+    public void The_message_of_a_finished_cancellation_is_recognised_as_bsoft_shows_it_now()
+    {
+        // "Cancelamento de CT-e realizado com sucesso.", cut from a capture of 18/11/2026. The older
+        // image of it scores 0.85 on that screen, below what counts as found: the bot reported an
+        // error for a CT-e it had just cancelled and left the message open.
+        var message = _store.Image("9-sucesso-alt")!;
+        _screen.Show(message, 857, 522);
+
+        Assert.True(_bot.Find("9-sucesso", 0.97, 10));
+        Assert.Equal(new ScreenBox(857, 522, message.Width, message.Height), _bot.Last);
     }
 
     [Fact]

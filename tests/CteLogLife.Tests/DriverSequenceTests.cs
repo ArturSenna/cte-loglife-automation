@@ -130,6 +130,14 @@ public class DriverSequenceTests : IDisposable
     public void Cancellation_without_the_cte_menu() =>
         Check("cancel-no-menu", d => Assert.True(d.CancelCte("98765", Critical)), true, "5.1ct-e");
 
+    [Fact]
+    public void Cancellation_when_bsoft_is_already_on_the_consultas_tab() =>
+        Check("cancel-tab-open", d => Assert.True(d.CancelCte("98765", Critical)), true, "2consultas");
+
+    [Fact]
+    public void A_cte_that_is_already_cancelled_is_only_looked_up() =>
+        Check("cancel-already", d => Assert.False(d.CancelCte("98765", Critical)), true, "5duploClickStatus");
+
     // ------------------------------------------------------------------ the fixed-wait mode sends the same things
 
     [Fact]

@@ -1,0 +1,114 @@
+# Publishes a new version of CTe LogLife (the C# app).
+#
+# When main receives a commit whose <Version> in Directory.Build.props has no release yet, this
+# builds the installer on a clean Windows machine with the same script used locally
+# (build_installer_dotnet.ps1: tests, publish, trial installation, installer) and publishes a
+# GitHub release tagged v<Version> with the installer attached. Installed copies look at the
+# latest release, so from that moment they offer the update to whoever opens the program.
+#
+# A push that does not change the version does nothing: the job ends in a few seconds.
+#
+# "Run workflow" on the Actions tab runs it by hand. With "publish" off (the default) it only
+# builds, and the installer stays with the run as an artifact: the way to try a change to this
+# file, or to get an installer built on a clean machine, without releasing anything.
+
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Publish the release (off: only build, the installer stays with the run)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write # to create the tag and the release
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: windows-2025
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # with the tags: the build script compares the version with them
+
+      - name: Version, and whether it is already released
+        id: version
+        shell: pwsh
+        env:
+          EVENT: ${{ github.event_name }}
+          WANT_PUBLISH: ${{ inputs.publish }}
+        run: |
+          $props = Get-Content Directory.Build.props -Raw
+          if ($props -notmatch '<Version>([^<]+)</Version>') { throw 'Version not found in Directory.Build.props' }
+          $version = $Matches[1].Trim()
+          $tag = "v$version"
+
+          $found = git ls-remote --tags origin "refs/tags/$tag"
+          if ($LASTEXITCODE -ne 0) { throw 'Could not read the tags of the repository.' }
+          $released = [bool]$found
+
+          if ($env:EVENT -eq 'push') {
+              # A new version number is what asks for a release.
+              $build = -not $released
+              $publish = -not $released
+          }
+          else {
+              $build = $true
+              $publish = $env:WANT_PUBLISH -eq 'true'
+              if ($publish -and $released) {
+                  throw "$tag is already released. Raise <Version> in Directory.Build.props first."
+              }
+          }
+
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "build=$("$build".ToLower())" >> $env:GITHUB_OUTPUT
+          "publish=$("$publish".ToLower())" >> $env:GITHUB_OUTPUT
+          $doing = if ($publish) { 'building and publishing' } elseif ($build) { 'building only' } else { 'nothing to do' }
+          $state = if ($released) { 'already released' } else { 'not released yet' }
+          "Version $version ($state): $doing." | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
+
+      - uses: actions/setup-dotnet@v6
+        if: steps.version.outputs.build == 'true'
+        with:
+          dotnet-version: 9.0.x # global.json keeps the build on this line even with newer SDKs installed
+
+      - name: Tests, trial installation and installer
+        if: steps.version.outputs.build == 'true'
+        shell: pwsh
+        run: ./build_installer_dotnet.ps1
+
+      - name: Keep the installer with this run
+        if: steps.version.outputs.build == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: CTe_LogLife_Setup_v${{ steps.version.outputs.version }}
+          path: installer_output/CTe_LogLife_Setup_v${{ steps.version.outputs.version }}.exe
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0 # the installer is already compressed
+
+      - name: Publish the release
+        if: steps.version.outputs.publish == 'true'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          # The release text is what the program shows as "Novidades" when it offers the update. It
+          # starts as GitHub's list of what was merged since the last release and can be edited on
+          # the release page afterwards.
+          gh release create "v$env:VERSION" "installer_output/CTe_LogLife_Setup_v$env:VERSION.exe" `
+              --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA `
+              --title "CTe LogLife $env:VERSION" --generate-notes
+          if ($LASTEXITCODE -ne 0) { throw 'The release was not published.' }
+          "Published: $env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/releases/tag/v$env:VERSION" |
+              Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append

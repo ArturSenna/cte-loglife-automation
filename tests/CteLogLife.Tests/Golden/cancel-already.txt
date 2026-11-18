@@ -1,0 +1,15 @@
+move 1278,265
+click
+move 1374,294
+click
+down Control
+char a
+up Control
+tap Delete
+char 9
+char 8
+char 7
+char 6
+char 5
+move 1471,269
+click

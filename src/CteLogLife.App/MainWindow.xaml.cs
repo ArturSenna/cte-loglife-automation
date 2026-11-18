@@ -6,6 +6,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Input;
+using System.Windows.Threading;
 using Microsoft.Win32;
 
 namespace CteLogLife.App;
@@ -44,6 +45,7 @@ public partial class MainWindow : Window, IRunWindows
     private OverlayWindow? _overlay;
     private GlobalHotkeys? _hotkeys;
     private WindowState _stateBeforeRun = WindowState.Normal;
+    private bool _logScrollQueued;
 
     public MainWindow(AppHost host)
     {
@@ -55,6 +57,7 @@ public partial class MainWindow : Window, IRunWindows
         AddHandler(PreviewTextInputEvent, new TextCompositionEventHandler(OnPreviewTextInput));
         DataObject.AddPastingHandler(this, OnPaste);
         ((INotifyCollectionChanged)host.Log.Entries).CollectionChanged += OnLogChanged;
+        StateChanged += (_, _) => ShowNewestLogLine(); // back from minimized: catch up with what was logged
         Closing += OnClosing;
     }
 
@@ -90,10 +93,40 @@ public partial class MainWindow : Window, IRunWindows
         if (!Accepts(e.OriginalSource, text.Trim())) e.CancelCommand();
     }
 
+    /// <summary>Whether the newest line of the activity log is drawn (for the snapshot tool's check).</summary>
+    public bool LastLogLineIsVisible() =>
+        LogList.Items.Count == 0 || LogList.ItemContainerGenerator.ContainerFromIndex(LogList.Items.Count - 1) is not null;
+
+    /// <summary>
+    /// Keeps the newest line of the activity log in view. Not from inside the change itself: at that
+    /// moment the list has not finished taking the new line in, and asking it to lay itself out failed
+    /// with "Um ItemsControl é inconsistente com a origem de seus itens" (seen when a run started right
+    /// after the program was opened). That left the list broken and showed an error in the middle of the
+    /// run. The scroll now happens once the dispatcher has nothing else to do, one time for any number
+    /// of new lines, and never while the window is minimized.
+    /// </summary>
     private void OnLogChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
-        if (e.Action == NotifyCollectionChangedAction.Add && LogList.Items.Count > 0)
-            LogList.ScrollIntoView(LogList.Items[^1]);
+        if (e.Action == NotifyCollectionChangedAction.Add) ShowNewestLogLine();
+    }
+
+    private void ShowNewestLogLine()
+    {
+        if (_logScrollQueued) return;
+        _logScrollQueued = true;
+        Dispatcher.BeginInvoke(DispatcherPriority.Background, () =>
+        {
+            _logScrollQueued = false;
+            if (LogList.Items.Count == 0 || WindowState == WindowState.Minimized) return;
+            try
+            {
+                LogList.ScrollIntoView(LogList.Items[^1]);
+            }
+            catch (InvalidOperationException)
+            {
+                // Seeing the newest line is a convenience. It must never interrupt a run.
+            }
+        });
     }
 
     private void OnSaveCredentials(object sender, RoutedEventArgs e)

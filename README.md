@@ -17,12 +17,22 @@ dotnet run --project src\CteLogLife.App
 .\build_installer_dotnet.ps1          # testes + instalador para o GitHub Releases (Inno Setup 6)
 ```
 
-**Instalador e release.** `build_installer_dotnet.ps1` gera `installer_output\CTe_LogLife_Setup_v<versão>.exe`,
-com a versão lida de `<Version>` em `Directory.Build.props`. Para publicar: suba a versão nesse arquivo,
-rode o script, crie no GitHub um release com a tag `v<versão>` e anexe o instalador (o script mostra o
-link no final). As cópias instaladas consultam o release mais recente, comparam a tag com a própria versão
-e baixam o `.exe` que tem "setup" no nome. Um release marcado como **pre-release** não é oferecido a elas:
-serve para testar o instalador em uma máquina antes de liberar para todas.
+**Publicar uma versão.** Suba `<Version>` em `Directory.Build.props` e leve o commit para a `main`. O
+GitHub faz o resto (`.github/workflows/release.yml`): quando a `main` recebe uma versão que ainda não tem
+release, uma máquina Windows limpa roda `build_installer_dotnet.ps1` (testes, publicação, instalação de
+teste, instalador) e publica o release `v<versão>` com o instalador anexado. Se um teste falhar, nada é
+publicado. Um push que não muda a versão não faz nada.
+
+As cópias instaladas consultam o release mais recente, comparam a tag com a própria versão e baixam o
+`.exe` que tem "setup" no nome: **a partir da publicação, todas oferecem a atualização** a quem abrir o
+programa. O texto do release é o que aparece em "Novidades" nesse aviso; ele nasce com a lista do que
+entrou desde o release anterior e pode ser editado na página do release. Para segurar uma versão já
+publicada, marque o release como **pre-release**: ele deixa de ser oferecido.
+
+Na aba Actions, "Run workflow" roda o mesmo processo à mão. Com "publish" desligado (o padrão) ele só
+gera o instalador, que fica anexado à execução por 14 dias: serve para testar uma versão em uma máquina
+antes de publicar. Rodar `build_installer_dotnet.ps1` aqui também só gera o instalador
+(`installer_output\CTe_LogLife_Setup_v<versão>.exe`), sem publicar nada.
 
 O instalador substitui a versão em Python no mesmo lugar (`Program Files (x86)\CTe LogLife`): apaga a
 pasta `_internal`, mantém os `.txt` de pastas e o login que ela guardava em `_internal\.env`, e o programa
@@ -71,7 +81,8 @@ O que muda para quem opera:
 
 As imagens do Bsoft (`botCTE/botCTE/resources`) e as planilhas `Alíquota.xlsx` e `Complementares.xlsx`
 continuam sendo as mesmas: as duas versões leem dali. O build está em .NET 9; para mudar de versão, altere
-`NetVersion` em `Directory.Build.props`.
+`NetVersion` em `Directory.Build.props`, a versão do SDK em `global.json` (que mantém o build no SDK 9 mesmo
+em máquinas com SDKs mais novos) e `dotnet-version` em `.github/workflows/release.yml`.
 
 `"CTe LogLife.exe" --selftest relatorio.txt` confere, na máquina onde o robô roda, se o painel fica fora
 das capturas de tela, se os atalhos estão livres, se um clique de verdade na caixa de busca dá o teclado ao

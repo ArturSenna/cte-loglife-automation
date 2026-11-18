@@ -417,11 +417,16 @@ public sealed class BsoftDriver(DesktopBot bot, IRunLog log) : IBsoftDriver, IDi
 
     public bool CancelCte(string cteNumber, Action pointOfNoReturn)
     {
-        bot.Step("Consultas", "2consultas", () =>
-        {
-            bot.Click();
-            bot.Wait(500);
-        }, waitMs: 30000);
+        // The Consultas tab. The bot knows it as it looks when another tab is the open one. After a
+        // CT-e that turned out to be cancelled already, or a run that stopped there, Bsoft is still on
+        // Consultas: the tab looks different, and there is nothing to click because its search field
+        // is already on screen. So the field showing up without the tab ends the wait.
+        if (bot.FindBefore("2consultas", "10ClicarBordaInferior", 30000, 30000))
+            bot.Act("Consultas", () =>
+            {
+                bot.Click();
+                bot.Wait(500);
+            });
 
         bot.Step("Número do CT-e na busca", "10ClicarBordaInferior", () =>
         {
@@ -473,9 +478,11 @@ public sealed class BsoftDriver(DesktopBot bot, IRunLog log) : IBsoftDriver, IDi
             bot.Click();
             bot.Wait(200);
 
-            if (!bot.Find("9-sucesso", M, 20000))
+            // The answer comes from the tax authority and can take a while. Giving up early would report
+            // an error for a CT-e that then gets cancelled, and leave its message open on the screen.
+            if (!bot.Find("9-sucesso", M, 60000))
                 throw new InvalidOperationException(
-                    "Pop-up '9-sucesso' não encontrado: confira no Bsoft se o CT-e foi cancelado.");
+                    "A mensagem de cancelamento realizado ('9-sucesso') não apareceu: confira no Bsoft se o CT-e foi cancelado.");
             bot.Enter();
             return true;
         }

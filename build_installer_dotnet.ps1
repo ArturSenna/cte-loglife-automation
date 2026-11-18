@@ -1,4 +1,6 @@
-# Builds the installer of the C# version of CTe LogLife: the file to attach to a GitHub release.
+# Builds the installer of the C# version of CTe LogLife: the file attached to a GitHub release.
+# GitHub runs this same script to publish a new version (.github\workflows\release.yml); run it
+# here to get the installer without releasing anything.
 #
 #   .\build_installer_dotnet.ps1              tests, publish, trial installation, installer
 #   .\build_installer_dotnet.ps1 -SkipTests   without running the tests
@@ -7,8 +9,8 @@
 #
 # Result: installer_output\CTe_LogLife_Setup_v<version>.exe, with <version> taken from
 # Directory.Build.props. Installed copies look at the latest GitHub release, compare its tag with
-# their own version and download the .exe whose name contains "setup": keep that file name, and
-# tag the release v<version>.
+# their own version and download the .exe whose name contains "setup": the file name and the tag
+# v<version> must stay as they are.
 #
 # The app is published to a folder of its own, so this can run while CTe LogLife is open from
 # publish\CTe LogLife.
@@ -161,14 +163,17 @@ $size = (Get-Item -LiteralPath $installer).Length / 1MB
 Write-Host ''
 Write-Host ("Installer: {0} ({1:N0} MB)" -f $installer, $size) -ForegroundColor Green
 Write-Host "SHA-256:   $((Get-FileHash -LiteralPath $installer).Hash)"
-Write-Host ''
-Write-Host "To release it, create a GitHub release with the tag v$version and attach that file:"
-$origin = GitLines remote get-url origin | Select-Object -First 1
-if ($origin -match 'github\.com[:/](?<owner>[^/]+)/(?<repo>.+?)(\.git)?/?$') {
-    Write-Host "  https://github.com/$($Matches.owner)/$($Matches.repo)/releases/new?tag=v$version&title=CTe%20LogLife%20$version"
+if ($env:GITHUB_ACTIONS -ne 'true') {
+    # On this machine the installer is only built. Publishing is GitHub's part.
+    Write-Host ''
+    Write-Host "Nothing was released. Version $version is published by GitHub when a commit with it reaches"
+    Write-Host 'main: the Release workflow builds this same installer there and attaches it to a new release.'
+    Write-Host 'Installed copies offer the update from that moment.'
+    $origin = GitLines remote get-url origin | Select-Object -First 1
+    if ($origin -match 'github\.com[:/](?<owner>[^/]+)/(?<repo>.+?)(\.git)?/?$') {
+        Write-Host "To publish this file by hand instead: https://github.com/$($Matches.owner)/$($Matches.repo)/releases/new?tag=v$version&title=CTe%20LogLife%20$version"
+    }
 }
-Write-Host 'Installed copies offer the update once it is the latest release. A release marked as'
-Write-Host 'pre-release is not offered to them: use that to try the installer on one machine first.'
 foreach ($warning in $warnings) {
     Write-Host ''
     Write-Host "WARNING: $warning" -ForegroundColor Yellow

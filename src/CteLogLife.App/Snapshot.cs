@@ -98,6 +98,34 @@ internal static class Snapshot
             dialog.Close();
         }
 
+        // The activity log as it is right after the program starts: empty, then filled line by line
+        // while it is on screen. Bringing each new line into view used to fail at this point with
+        // "Um ItemsControl é inconsistente com a origem de seus itens", in the middle of a run.
+        var logCheck = "ok";
+        try
+        {
+            // What happens when a run starts right after the program was opened: one line in the log,
+            // then the run's first lines arrive while the window is being minimized to show Bsoft.
+            host.Log.Entries.Clear();
+            Pump();
+            host.Log.Info("CTe LogLife iniciado.");
+            Pump();
+            host.Log.Info("Iniciando: Cancelamento em lote");
+            window.WindowState = WindowState.Minimized;
+            host.Log.Info("Consultando cancelamentos entre 2026-11-18 e 2026-11-18");
+            Pump();
+            host.Log.Info("Cancelando CT-e 15872");
+            Pump();
+            window.WindowState = WindowState.Normal;
+            Pump();
+            if (!window.LastLogLineIsVisible()) logCheck = "FAILED: the last line is not in view";
+        }
+        catch (Exception ex)
+        {
+            logCheck = "FAILED: " + ex.GetBaseException().Message.Split('\n')[0];
+        }
+        File.WriteAllText(Path.Combine(folder, "log-check.txt"), logCheck);
+
         window.Close();
     }
 
