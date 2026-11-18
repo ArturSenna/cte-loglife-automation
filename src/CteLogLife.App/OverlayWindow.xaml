@@ -144,7 +144,7 @@
             </TextBlock>
 
             <!-- search / include: only while paused -->
-            <Border Background="#16243A" BorderBrush="#3A506B" BorderThickness="1" CornerRadius="7" Height="32"
+            <Border x:Name="SearchFrame" Background="#16243A" BorderBrush="#3A506B" BorderThickness="1" CornerRadius="7" Height="32"
                     Padding="9,0,4,0" Margin="0,8,0,2" Cursor="IBeam" MouseLeftButtonDown="OnSearchMouseDown"
                     Visibility="{Binding ShowSearch, Converter={StaticResource Visible}}">
                 <Grid>
@@ -227,6 +227,12 @@
             <!-- footer -->
             <Border Height="1" Background="{StaticResource PanelLine}" Margin="0,12,0,12" />
             <StackPanel Visibility="{Binding IsPaused, Converter={StaticResource Visible}}">
+                <Border Background="#26FFC857" BorderBrush="#FFC857" BorderThickness="1" CornerRadius="7"
+                        Padding="10,7,10,8" Margin="0,0,0,10"
+                        Visibility="{Binding HasPauseNote, Converter={StaticResource Visible}}">
+                    <TextBlock Text="{Binding PauseNote}" Foreground="White" FontSize="11.5" TextWrapping="Wrap"
+                               LineHeight="16" />
+                </Border>
                 <TextBlock Text="{Binding PausedText}" Foreground="{StaticResource Soft}"
                            FontSize="11.5" TextWrapping="Wrap" Margin="0,0,0,10" />
                 <StackPanel Orientation="Horizontal" Margin="0,0,0,14">

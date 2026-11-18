@@ -536,6 +536,18 @@
 
                         <Border Style="{StaticResource CardBorder}">
                             <StackPanel>
+                                <TextBlock Text="Ritmo do robô" Style="{StaticResource CardTitle}" />
+                                <TextBlock Style="{StaticResource CardHint}"
+                                           Text="Uma pausa só começa entre um passo e outro, nunca no meio de um campo. Se o Bsoft for usado durante a pausa, ao continuar o robô refaz o último passo quando ele é de preenchimento." />
+                                <CheckBox IsChecked="{Binding AdaptiveWaits}" FontSize="13.5" Margin="0,0,0,2"
+                                          Content="Seguir assim que o Bsoft responder a cada ação" />
+                                <TextBlock Style="{StaticResource CardHint}" Margin="28,0,0,0"
+                                           Text="Ligado, o robô espera a tela reagir e parar de mudar, no máximo o tempo fixo de antes, e não espera até o fim por um aviso opcional quando a tela seguinte já apareceu. Desligue para voltar às esperas fixas (300 ms depois de cada clique ou tecla) se o Bsoft estiver lento e algum campo sair errado." />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource CardBorder}">
+                            <StackPanel>
                                 <TextBlock Text="Telas desconhecidas" Style="{StaticResource CardTitle}" />
                                 <TextBlock Style="{StaticResource CardHint}"
                                            Text="Quando um elemento esperado não aparece no Bsoft, o robô captura a tela, para e espera você resolver. Ele continua quando você clicar em Continuar no painel." />

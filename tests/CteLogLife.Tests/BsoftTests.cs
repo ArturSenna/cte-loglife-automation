@@ -8,7 +8,10 @@ namespace CteLogLife.Tests;
 public sealed class FakeScreen : IScreenSource
 {
     private readonly object _lock = new();
-    private Mat _current = new(1080, 1920, MatType.CV_8UC3, new Scalar(240, 240, 240));
+    private readonly Mat _current;
+
+    public FakeScreen(int width = 1920, int height = 1080) =>
+        _current = new Mat(height, width, MatType.CV_8UC3, new Scalar(240, 240, 240));
 
     public int Captures { get; private set; }
 
@@ -150,14 +153,19 @@ public class TemplateTests : IDisposable
     public async Task Time_spent_paused_does_not_count_against_the_search()
     {
         var template = _store.Image("zeroValue")!;
+        // The first look of a test run is slow (images are read, OpenCV starts up): it is done here so
+        // that it cannot use up the search's own time below.
+        Assert.False(_bot.Find("zeroValue", 0.97, 10));
+        var looksBefore = _screen.Captures;
         _screen.OnCapture = count =>
         {
-            if (count == 1) _control.RequestPause();
+            if (count == looksBefore + 1) _control.RequestPause();
         };
-        var search = Task.Run(() => _bot.Find("zeroValue", 0.97, 300));
-        while (!_control.IsPaused) await Task.Delay(5);
+        var search = Task.Run(() => _bot.Find("zeroValue", 0.97, 1000));
+        for (var i = 0; i < 2000 && !_control.IsPaused; i++) await Task.Delay(5);
+        Assert.True(_control.IsPaused, $"a busca não pausou (terminada: {search.IsCompleted}, olhadas: {_screen.Captures})");
 
-        await Task.Delay(600); // longer than the search's own timeout
+        await Task.Delay(1500); // longer than the search's own timeout
         _screen.Show(template, 100, 100);
         _control.Resume();
 

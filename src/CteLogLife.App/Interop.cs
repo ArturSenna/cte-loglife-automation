@@ -12,6 +12,8 @@ internal static class Interop
     private const uint WdaNone = 0x0, WdaExcludeFromCapture = 0x11;
 
     public const int WmHotkey = 0x0312;
+    public const int WmMouseActivate = 0x0021;
+    public static readonly IntPtr MaActivate = new(1), MaNoActivate = new(3);
     public const uint ModAlt = 0x1, ModControl = 0x2, ModNoRepeat = 0x4000;
     public const uint VkPause = 0x13, VkP = 0x50, VkQ = 0x51;
 
@@ -70,17 +72,68 @@ internal static class Interop
         return process == (uint)Environment.ProcessId;
     }
 
-    public static bool BringToFront(IntPtr window) => IsWindow(window) && SetForegroundWindow(window);
+    [DllImport("user32.dll")]
+    private static extern bool GetCursorPos(out NativePoint point);
+
+    [DllImport("user32.dll")]
+    private static extern bool AttachThreadInput(uint thread, uint attachTo, bool attach);
+
+    [DllImport("kernel32.dll")]
+    private static extern uint GetCurrentThreadId();
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativePoint
+    {
+        public int X, Y;
+    }
+
+    /// <summary>Where the mouse pointer is, in screen pixels.</summary>
+    public static Point CursorPosition() => GetCursorPos(out var point) ? new Point(point.X, point.Y) : new Point(-1, -1);
+
+    /// <summary>
+    /// Makes the window the one that gets the keyboard. Windows only lets a program do this in a few
+    /// situations; when the plain request is refused, it is repeated while sharing the input state of
+    /// the program that has the keyboard, which is the documented way around it.
+    /// </summary>
+    public static bool TakeForeground(Window window) => GiveForeground(Handle(window));
+
+    /// <summary>The same for any window, used to hand the keyboard back to the one that had it.</summary>
+    public static bool GiveForeground(IntPtr handle)
+    {
+        if (handle == IntPtr.Zero || !IsWindow(handle)) return false;
+        if (GetForegroundWindow() == handle) return true;
+        SetForegroundWindow(handle);
+        if (GetForegroundWindow() == handle) return true;
+
+        var other = GetWindowThreadProcessId(GetForegroundWindow(), out _);
+        var mine = GetCurrentThreadId();
+        if (other == 0 || other == mine || !AttachThreadInput(mine, other, true)) return false;
+        try
+        {
+            SetForegroundWindow(handle);
+        }
+        finally
+        {
+            AttachThreadInput(mine, other, false);
+        }
+        return GetForegroundWindow() == handle;
+    }
+
+    /// <summary>Whether this window is the one Windows sends the keyboard to.</summary>
+    public static bool IsForeground(Window window)
+    {
+        var handle = Handle(window);
+        return handle != IntPtr.Zero && GetForegroundWindow() == handle;
+    }
 
     /// <summary>When on, mouse clicks go through the window to whatever is under it.</summary>
     public static void SetClickThrough(Window window, bool on) => SetExStyle(window, WsExTransparent, on);
 
     /// <summary>Keeps the window out of screenshots, including the ones the bot takes of Bsoft.</summary>
-    public static bool ExcludeFromCapture(Window window, bool on)
-    {
-        var handle = Handle(window);
-        return handle != IntPtr.Zero && SetWindowDisplayAffinity(handle, on ? WdaExcludeFromCapture : WdaNone);
-    }
+    public static bool ExcludeFromCapture(Window window, bool on) => ExcludeFromCapture(Handle(window), on);
+
+    public static bool ExcludeFromCapture(IntPtr handle, bool on) =>
+        handle != IntPtr.Zero && SetWindowDisplayAffinity(handle, on ? WdaExcludeFromCapture : WdaNone);
 }
 
 /// <summary>System-wide shortcuts that work while Bsoft has the keyboard.</summary>

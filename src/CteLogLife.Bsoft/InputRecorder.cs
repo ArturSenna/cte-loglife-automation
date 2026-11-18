@@ -54,11 +54,24 @@ public sealed class InputRecorder : IInputRecorder
     /// <summary>False when Windows refused the hooks: nothing will be recorded.</summary>
     public bool Installed { get; private set; }
 
+    /// <summary>When set, only clicks and keys that go to this program count.</summary>
+    public uint OnlyProcess { get; init; }
+
+    /// <summary>
+    /// Called from the hook's thread each time something is recorded (or refused as not repeatable).
+    /// It must return quickly.
+    /// </summary>
+    public Action? Seen { get; init; }
+
     /// <summary>
     /// A recorder that also sees input sent by programs and input on this program's own windows, so the
     /// self-test can play the operator on a window of its own.
     /// </summary>
     public static InputRecorder ForSelfTest() => new() { _probing = true };
+
+    /// <summary>The same, watching one program only, as the bot does during a pause.</summary>
+    public static InputRecorder ForSelfTest(uint onlyProcess, Action seen) =>
+        new() { _probing = true, OnlyProcess = onlyProcess, Seen = seen };
 
     /// <summary>
     /// Self-test: checks on this machine that the hooks install, that a key press is seen and that a
@@ -183,7 +196,7 @@ public sealed class InputRecorder : IInputRecorder
 
     private void OnMouseDown(bool right, Native.POINT point)
     {
-        if (IsOwn(Native.WindowFromPoint(point))) return;
+        if (!Counts(Native.WindowFromPoint(point))) return;
         lock (_steps)
         {
             var now = Environment.TickCount64;
@@ -192,16 +205,19 @@ public sealed class InputRecorder : IInputRecorder
             {
                 _steps[^1] = last with { Kind = RecordedKind.DoubleClick };
                 _lastAt = now;
-                return;
             }
-            Add(new RecordedStep(right ? RecordedKind.RightClick : RecordedKind.Click, point.X, point.Y), now);
+            else
+            {
+                Add(new RecordedStep(right ? RecordedKind.RightClick : RecordedKind.Click, point.X, point.Y), now);
+            }
         }
+        Seen?.Invoke();
     }
 
     private void OnKeyDown(int key)
     {
         if (IsModifier(key) || key == VkPause) return;
-        if (IsOwn(Native.GetForegroundWindow())) return; // typed into this program's own search box
+        if (!Counts(Native.GetForegroundWindow())) return; // e.g. typed into this program's own search box
 
         bool control = Down(VkControl), alt = Down(VkAlt), shift = Down(VkShift);
         if (Down(VkLeftWin) || Down(VkRightWin)) return; // Windows shortcuts are not about the screen
@@ -217,6 +233,7 @@ public sealed class InputRecorder : IInputRecorder
             else
                 _unrepeatable ??= "foi digitado texto ou usado um atalho que o robô não repete sozinho";
         }
+        Seen?.Invoke();
     }
 
     /// <summary>The keys that answer a dialog: they are safe to press again on the same dialog.</summary>
@@ -237,11 +254,14 @@ public sealed class InputRecorder : IInputRecorder
         _lastAt = now;
     }
 
-    private bool IsOwn(IntPtr window)
+    /// <summary>Whether input going to this window is recorded: not this program's own windows, and
+    /// only the watched program when there is one.</summary>
+    private bool Counts(IntPtr window)
     {
-        if (window == IntPtr.Zero || _probing) return false;
+        if (window == IntPtr.Zero) return OnlyProcess == 0;
         Native.GetWindowThreadProcessId(window, out var process);
-        return process == _ownProcess;
+        if (process == _ownProcess && !_probing) return false;
+        return OnlyProcess == 0 || process == OnlyProcess;
     }
 
     private static bool Down(int key) => (Native.GetAsyncKeyState(key) & 0x8000) != 0;

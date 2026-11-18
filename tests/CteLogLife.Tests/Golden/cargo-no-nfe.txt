@@ -1,0 +1,47 @@
+move 1091,27
+click
+move 1208,32
+click
+move 1381,42
+click
+down Control
+char a
+up Control
+clipboard MATERIAL BIOLÓGICO
+down Control
+char v
+up Control
+tap Enter
+move 1463,41
+click
+down Control
+char a
+up Control
+clipboard 6
+down Control
+char v
+up Control
+tap Tab
+down Control
+char a
+up Control
+clipboard 6
+down Control
+char v
+up Control
+tap Tab
+down Control
+char a
+up Control
+clipboard 6
+down Control
+char v
+up Control
+tap Tab
+tap Tab
+down Control
+char a
+up Control
+char 3
+move 1556,28
+click

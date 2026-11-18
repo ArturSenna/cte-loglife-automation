@@ -46,6 +46,17 @@ O que muda para quem opera:
   `Enter` manda o primeiro resultado para a frente) e **incluir um protocolo** que não estava na lista: ele é
   buscado de novo no sistema e entra como o próximo. A inclusão existe nas emissões unificada, simbólica,
   avulsa e complementar; nas filas de cancelamento e de guias há só busca e reordenação.
+- **A pausa espera o passo terminar.** O trabalho no Bsoft é feito em passos (um elemento da tela e o que
+  se faz nele). A pausa nunca corta um passo ao meio: nenhum campo fica digitado pela metade. Parar
+  (`Ctrl+Alt+Q`) continua valendo na hora. Enquanto está pausado, o robô observa se o Bsoft recebe cliques
+  ou teclas; se recebeu, o painel avisa e, ao continuar, o último passo é **refeito do início** quando ele é
+  de preenchimento que substitui o campo (CNPJ das buscas, natureza da carga, pesos e volumes, número na
+  consulta de cancelamento). Os outros passos não são refeitos sozinhos: o painel diz qual conferir.
+- **Ritmo**: depois de cada clique ou tecla o robô segue quando a tela do Bsoft reagiu e parou de mudar,
+  em vez de esperar sempre 300 ms (que passou a ser o máximo). O texto só é colado depois de conferido na
+  área de transferência, e os avisos opcionais depois do F4 (crédito, contingência, confirmação de valor)
+  deixam de custar a espera inteira quando a tela seguinte já apareceu. Em Configurações → Ritmo do robô dá
+  para voltar às esperas fixas.
 - **Tela desconhecida**: quando um elemento esperado não aparece no Bsoft, o robô captura a tela, para e
   espera. Você resolve a tela no Bsoft e clica em Continuar. O que foi feito (cliques e as teclas Enter,
   Esc, Tab, Espaço, setas e Alt+letra) fica gravado junto com a imagem da tela, e da próxima vez que ela
@@ -63,9 +74,15 @@ continuam sendo as mesmas: as duas versões leem dali. O build está em .NET 9; 
 `NetVersion` em `Directory.Build.props`.
 
 `"CTe LogLife.exe" --selftest relatorio.txt` confere, na máquina onde o robô roda, se o painel fica fora
-das capturas de tela, se os atalhos estão livres, se a caixa de busca recebe o teclado e se o ciclo de tela
-desconhecida (parar, aprender com um clique, repetir sozinho) funciona. Ele usa duas janelinhas do próprio
-programa no lugar do Bsoft, move o ponteiro e dá dois cliques nelas; leva uns dez segundos.
+das capturas de tela, se os atalhos estão livres, se um clique de verdade na caixa de busca dá o teclado ao
+painel (e se a tecla digitada chega nela), se o teclado volta para a outra janela no fim da pausa, se o ciclo
+de tela desconhecida (parar, aprender com um clique, repetir sozinho) funciona e quanto o robô espera depois
+de um clique. Ele usa janelinhas do próprio programa no lugar do Bsoft, move o ponteiro, clica nelas e digita
+um "7" na caixa de busca; leva uns vinte segundos. Não mexa no mouse enquanto ele roda.
+
+Os testes em `tests/` incluem a sequência exata de cliques e teclas que o robô envia em cada tipo de
+trabalho (`Golden/*.txt`), gravada do driver validado no Bsoft: qualquer mudança no que é digitado, ou na
+ordem, aparece ali. Para regravar de propósito: `CTE_WRITE_GOLDEN=1`.
 
 ---
 

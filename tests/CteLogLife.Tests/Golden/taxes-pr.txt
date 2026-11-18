@@ -1,0 +1,91 @@
+move 494,96
+click
+move 602,122
+click
+tap Tab
+char 8
+char 0
+char .
+char 0
+move 700,97
+click
+move 759,97
+click
+tap Tab
+char 9
+char 0
+tap Down
+tap Enter
+tap Tab
+tap Tab
+char 0
+tap Tab
+char 1
+char 2
+char .
+char 0
+tap Tab
+tap Enter
+move 840,96
+click
+move 906,113
+click
+move 906,97
+click
+char 0
+char 0
+char 0
+tap Enter
+char 0
+tap Enter
+tap Tab
+tap Enter
+move 988,97
+click
+move 1068,118
+click
+clipboard ICMS: texto da observação
+down Control
+char v
+up Control
+move 1250,158
+rclick
+move 1434,97
+click
+clipboard GNRE_ICMSST
+down Control
+char v
+up Control
+tap Tab
+clipboard 9.60
+down Control
+char v
+up Control
+move 1506,100
+click
+tap F4
+tap Enter
+move 88,320
+click
+tap Tab
+tap Tab
+tap Enter
+tap Right
+tap Enter
+tap Right
+tap Enter
+tap Right
+tap Right
+tap Right
+tap Enter
+tap Left
+tap Enter
+tap Enter
+tap F10
+clipboard-clear
+move 1188,281
+click
+click
+down Control
+char c
+up Control

@@ -39,6 +39,13 @@ public sealed class AppSettings
     /// </summary>
     public bool LearnUnknownScreens { get; set; } = true;
 
+    /// <summary>
+    /// On: after each click or key the bot goes on as soon as Bsoft's screen answered, and it does not
+    /// wait out an optional pop-up once the screen after it is there. Off: the fixed waits of the
+    /// Python bot (300 ms after every action).
+    /// </summary>
+    public bool AdaptiveWaits { get; set; } = true;
+
     public bool CheckUpdatesOnStartup { get; set; } = true;
     public bool LegacyImported { get; set; }
 }

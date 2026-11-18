@@ -1,0 +1,29 @@
+move 1278,265
+click
+move 1374,294
+click
+down Control
+char a
+up Control
+tap Delete
+char 9
+char 8
+char 7
+char 6
+char 5
+move 1471,269
+click
+move 1576,279
+click
+click
+move 1670,264
+click
+move 1758,266
+click
+clipboard TRANSPORTE CANCELADO
+down Control
+char v
+up Control
+move 1857,269
+click
+tap Enter

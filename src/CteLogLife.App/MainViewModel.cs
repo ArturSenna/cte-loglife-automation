@@ -73,6 +73,7 @@ public partial class MainViewModel : ObservableObject
         _checkUpdatesOnStartup = settings.CheckUpdatesOnStartup;
         _pdfWaitSeconds = settings.PdfWaitSeconds.ToString(CultureInfo.InvariantCulture);
         _learnUnknownScreens = settings.LearnUnknownScreens;
+        _adaptiveWaits = settings.AdaptiveWaits;
         host.LearnedScreens.Changed += () =>
             App.Current.Dispatcher.BeginInvoke(() => OnPropertyChanged(nameof(LearnedScreensText)));
 
@@ -154,6 +155,10 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private bool _learnUnknownScreens;
 
     partial void OnLearnUnknownScreensChanged(bool value) => Save(s => s.LearnUnknownScreens = value);
+
+    [ObservableProperty] private bool _adaptiveWaits;
+
+    partial void OnAdaptiveWaitsChanged(bool value) => Save(s => s.AdaptiveWaits = value);
 
     public string LearnedScreensText => _host.LearnedScreens.Count switch
     {
