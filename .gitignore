@@ -80,3 +80,11 @@ folderpath.txt
 folderpath2.txt
 relatorio_bsoft.txt
 relatorio_target.txt
+# .NET (C# app in src/ and tests/)
+bin/
+obj/
+publish/
+*.user
+.vs/
+TestResults/
+!src/**/app.manifest

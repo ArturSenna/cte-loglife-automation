@@ -1,0 +1,636 @@
+<Window x:Class="CteLogLife.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:CteLogLife.App"
+        Title="CTe LogLife" Width="1080" Height="780" MinWidth="940" MinHeight="640"
+        WindowStartupLocation="CenterScreen" Background="{StaticResource Page}"
+        Icon="/Assets/app.ico" FontFamily="Segoe UI Variable Text, Segoe UI" UseLayoutRounding="True">
+    <Window.Resources>
+        <local:PageConverter x:Key="IsPage" />
+        <local:PageVisibilityConverter x:Key="PageVisible" />
+        <BooleanToVisibilityConverter x:Key="Visible" />
+        <local:InverseVisibilityConverter x:Key="Hidden" />
+
+        <Style TargetType="DatePicker">
+            <Setter Property="Height" Value="36" />
+            <Setter Property="Width" Value="160" />
+            <Setter Property="FontSize" Value="13.5" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+        </Style>
+    </Window.Resources>
+
+    <Window.InputBindings>
+        <KeyBinding Key="U" Modifiers="Control" Command="{Binding CheckUpdatesCommand}" />
+        <KeyBinding Key="F1" Command="{Binding AboutCommand}" />
+    </Window.InputBindings>
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="232" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <!-- ============================================================ navigation rail -->
+        <Border Background="{StaticResource Rail}">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Top" Margin="22,24,18,22">
+                    <StackPanel Orientation="Horizontal">
+                        <Border Width="34" Height="34" CornerRadius="9" Background="{StaticResource Brand}">
+                            <TextBlock Text="&#xE7C0;" FontFamily="{StaticResource Icons}" FontSize="17" Foreground="White"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <StackPanel Margin="11,0,0,0" VerticalAlignment="Center">
+                            <TextBlock Text="CTe LogLife" Foreground="White" FontSize="16" FontWeight="SemiBold" />
+                            <TextBlock Text="Emissão de CT-e no Bsoft" Foreground="{StaticResource RailText}" FontSize="11" />
+                        </StackPanel>
+                    </StackPanel>
+                </StackPanel>
+
+                <StackPanel DockPanel.Dock="Bottom" Margin="0,0,0,14">
+                    <Border Height="1" Background="#22364F" Margin="18,0,18,10" />
+                    <Button Command="{Binding CheckUpdatesCommand}" Cursor="Hand" Margin="24,0,18,2"
+                            HorizontalAlignment="Left" ToolTip="Ctrl+U">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <TextBlock x:Name="Text" Text="Verificar atualizações" Foreground="{StaticResource RailText}"
+                                           FontSize="12" />
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Text" Property="Foreground" Value="White" />
+                                        <Setter TargetName="Text" Property="TextDecorations" Value="Underline" />
+                                    </Trigger>
+                                    <Trigger Property="IsKeyboardFocused" Value="True">
+                                        <Setter TargetName="Text" Property="TextDecorations" Value="Underline" />
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
+                    <TextBlock Margin="24,4,18,0" Foreground="#6F7F94" FontSize="11.5">
+                        <Run Text="Versão" /> <Run Text="{Binding Version, Mode=OneTime}" />
+                    </TextBlock>
+                </StackPanel>
+
+                <StackPanel>
+                    <TextBlock Text="EMISSÃO" Foreground="#6F7F94" FontSize="10.5" FontWeight="SemiBold" Margin="24,4,0,6" />
+                    <RadioButton Style="{StaticResource RailItem}" Tag="&#xE724;" Content="Emissão"
+                                 IsChecked="{Binding Page, Converter={StaticResource IsPage}, ConverterParameter=Emission}" />
+                    <RadioButton Style="{StaticResource RailItem}" Tag="&#xE710;" Content="Complementar"
+                                 IsChecked="{Binding Page, Converter={StaticResource IsPage}, ConverterParameter=Complementary}" />
+                    <RadioButton Style="{StaticResource RailItem}" Tag="&#xE707;" Content="Por UF"
+                                 IsChecked="{Binding Page, Converter={StaticResource IsPage}, ConverterParameter=ByUf}" />
+
+                    <TextBlock Text="MANUTENÇÃO" Foreground="#6F7F94" FontSize="10.5" FontWeight="SemiBold" Margin="24,18,0,6" />
+                    <RadioButton Style="{StaticResource RailItem}" Tag="&#xE711;" Content="Cancelamento"
+                                 IsChecked="{Binding Page, Converter={StaticResource IsPage}, ConverterParameter=Cancel}" />
+                    <RadioButton Style="{StaticResource RailItem}" Tag="&#xE90F;" Content="Utilitários"
+                                 IsChecked="{Binding Page, Converter={StaticResource IsPage}, ConverterParameter=Tools}" />
+                    <Grid>
+                        <RadioButton Style="{StaticResource RailItem}" Tag="&#xE823;" Content="Pendências"
+                                     IsChecked="{Binding Page, Converter={StaticResource IsPage}, ConverterParameter=Pending}" />
+                        <Border HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,22,0" MinWidth="22"
+                                Height="20" CornerRadius="10" Background="{StaticResource Danger}" IsHitTestVisible="False"
+                                Visibility="{Binding HasPending, Converter={StaticResource Visible}}">
+                            <TextBlock Text="{Binding PendingCount}" Foreground="White" FontSize="11.5" FontWeight="SemiBold"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" Margin="6,0" />
+                        </Border>
+                    </Grid>
+
+                    <TextBlock Text="SISTEMA" Foreground="#6F7F94" FontSize="10.5" FontWeight="SemiBold" Margin="24,18,0,6" />
+                    <RadioButton Style="{StaticResource RailItem}" Tag="&#xE713;" Content="Configurações"
+                                 IsChecked="{Binding Page, Converter={StaticResource IsPage}, ConverterParameter=Settings}" />
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- ============================================================ content -->
+        <Grid Grid.Column="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <ScrollViewer x:Name="PageScroll" VerticalScrollBarVisibility="Auto" Focusable="False">
+                <Grid Margin="34,28,34,10" MaxWidth="860" HorizontalAlignment="Left" IsEnabled="{Binding IsIdle}">
+
+                    <!-- ================= Emissão -->
+                    <StackPanel Visibility="{Binding Page, Converter={StaticResource PageVisible}, ConverterParameter=Emission}">
+                        <TextBlock Text="Emissão" Style="{StaticResource PageTitle}" />
+                        <TextBlock Style="{StaticResource PageHint}" Margin="0,4,0,20"
+                                   Text="Emite no Bsoft os CT-es que o sistema LogLife lista para o período e registra número e PDF de volta em cada protocolo." />
+
+                        <Border Style="{StaticResource CardBorder}">
+                            <StackPanel>
+                                <TextBlock Text="CT-e unificado" Style="{StaticResource CardTitle}" />
+                                <TextBlock Style="{StaticResource CardHint}"
+                                           Text="Simbólicos primeiro, depois os normais rodoviários e os demais. A ordem pode ser alterada no painel lateral enquanto a execução estiver pausada." />
+                                <StackPanel Orientation="Horizontal">
+                                    <StackPanel Margin="0,0,16,0">
+                                        <TextBlock Text="Data inicial" Style="{StaticResource FieldLabel}" />
+                                        <DatePicker SelectedDate="{Binding EmissionStart}" />
+                                    </StackPanel>
+                                    <StackPanel Margin="0,0,22,0">
+                                        <TextBlock Text="Data final" Style="{StaticResource FieldLabel}" />
+                                        <DatePicker SelectedDate="{Binding EmissionEnd}" />
+                                    </StackPanel>
+                                    <Button Style="{StaticResource ActionButton}" VerticalAlignment="Bottom"
+                                            Command="{Binding EmitUnifiedCommand}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="&#xE768;" Style="{StaticResource IconGlyph}" />
+                                            <TextBlock Text="Emitir CT-e unificado" />
+                                        </StackPanel>
+                                    </Button>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource CardBorder}">
+                            <StackPanel>
+                                <TextBlock Text="CT-e avulso" Style="{StaticResource CardTitle}" />
+                                <TextBlock Style="{StaticResource CardHint}"
+                                           Text="Emite protocolos específicos. Para mais de um, separe com ponto e vírgula. A planilha de conferência usa a data inicial acima." />
+                                <StackPanel Orientation="Horizontal">
+                                    <StackPanel Margin="0,0,16,0">
+                                        <TextBlock Text="Protocolo(s)" Style="{StaticResource FieldLabel}" />
+                                        <TextBox Style="{StaticResource Field}" Width="220" Tag="list"
+                                                 Text="{Binding SingleProtocols, UpdateSourceTrigger=PropertyChanged}" />
+                                    </StackPanel>
+                                    <StackPanel Margin="0,0,16,0">
+                                        <TextBlock Text="Volumes" Style="{StaticResource FieldLabel}" />
+                                        <TextBox Style="{StaticResource Field}" Width="76" Tag="digits"
+                                                 Text="{Binding SingleVolumes, UpdateSourceTrigger=PropertyChanged}" />
+                                    </StackPanel>
+                                    <StackPanel Margin="0,0,22,0">
+                                        <TextBlock Text="Tipo" Style="{StaticResource FieldLabel}" />
+                                        <StackPanel Orientation="Horizontal" Height="36">
+                                            <RadioButton Content="Normal" GroupName="SingleKind" IsChecked="True"
+                                                         VerticalAlignment="Center" Margin="0,0,14,0" FontSize="13.5" />
+                                            <RadioButton Content="Simbólico" GroupName="SingleKind"
+                                                         IsChecked="{Binding SingleSymbolic}" VerticalAlignment="Center"
+                                                         FontSize="13.5" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                    <Button Style="{StaticResource ActionButton}" VerticalAlignment="Bottom"
+                                            Command="{Binding EmitSingleCommand}" Content="Emitir" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- ================= Complementar -->
+                    <StackPanel Visibility="{Binding Page, Converter={StaticResource PageVisible}, ConverterParameter=Complementary}">
+                        <TextBlock Text="CT-e complementar" Style="{StaticResource PageTitle}" />
+                        <TextBlock Style="{StaticResource PageHint}" Margin="0,4,0,20"
+                                   Text="Emite o complementar dos extras (coletas e entregas adicionais, kg extra, materiais) dos serviços cujo CT-e normal já existe." />
+
+                        <Border Style="{StaticResource CardBorder}">
+                            <StackPanel>
+                                <TextBlock Text="Serviços do período" Style="{StaticResource CardTitle}" />
+                                <TextBlock Style="{StaticResource CardHint}"
+                                           Text="O sistema decide quais serviços são elegíveis e o valor do extra." />
+                                <StackPanel Orientation="Horizontal">
+                                    <StackPanel Margin="0,0,16,0">
+                                        <TextBlock Text="Data inicial" Style="{StaticResource FieldLabel}" />
+                                        <DatePicker SelectedDate="{Binding ComplementaryStart}" />
+                                    </StackPanel>
+                                    <StackPanel Margin="0,0,22,0">
+                                        <TextBlock Text="Data final" Style="{StaticResource FieldLabel}" />
+                                        <DatePicker SelectedDate="{Binding ComplementaryEnd}" />
+                                    </StackPanel>
+                                    <Button Style="{StaticResource ActionButton}" VerticalAlignment="Bottom"
+                                            Command="{Binding EmitComplementaryCommand}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="&#xE768;" Style="{StaticResource IconGlyph}" />
+                                            <TextBlock Text="Emitir complementares" />
+                                        </StackPanel>
+                                    </Button>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource CardBorder}">
+                            <StackPanel>
+                                <TextBlock Text="Complementar avulso" Style="{StaticResource CardTitle}" />
+                                <TextBlock Style="{StaticResource CardHint}"
+                                           Text="Somente os protocolos informados, dentro do período acima, mesmo que já tenham um complementar. Separe com ponto e vírgula." />
+                                <StackPanel Orientation="Horizontal">
+                                    <StackPanel Margin="0,0,22,0">
+                                        <TextBlock Text="Protocolo(s)" Style="{StaticResource FieldLabel}" />
+                                        <TextBox Style="{StaticResource Field}" Width="260" Tag="list"
+                                                 Text="{Binding ComplementaryProtocols, UpdateSourceTrigger=PropertyChanged}" />
+                                    </StackPanel>
+                                    <Button Style="{StaticResource ActionButton}" VerticalAlignment="Bottom"
+                                            Command="{Binding EmitComplementarySingleCommand}" Content="Emitir avulso" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- ================= Por UF -->
+                    <StackPanel Visibility="{Binding Page, Converter={StaticResource PageVisible}, ConverterParameter=ByUf}">
+                        <TextBlock Text="CT-e por UF" Style="{StaticResource PageTitle}" />
+                        <TextBlock Style="{StaticResource PageHint}" Margin="0,4,0,20"
+                                   Text="Para os clientes faturados por rota: soma os serviços do período sem CT-e e emite um único CT-e por par de estados de origem e destino." />
+
+                        <Border Style="{StaticResource CardBorder}">
+                            <StackPanel>
+                                <TextBlock Text="Serviços do período" Style="{StaticResource CardTitle}" />
+                                <TextBlock Style="{StaticResource CardHint}"
+                                           Text="Clientes: OC Precision Medicine, IRA Instituto Roberto Alvarenga e Microimagem. O valor inclui os adicionais do faturamento." />
+                                <StackPanel Orientation="Horizontal">
+                                    <StackPanel Margin="0,0,16,0">
+                                        <TextBlock Text="Data inicial" Style="{StaticResource FieldLabel}" />
+                                        <DatePicker SelectedDate="{Binding UfStart}" />
+                                    </StackPanel>
+                                    <StackPanel Margin="0,0,22,0">
+                                        <TextBlock Text="Data final" Style="{StaticResource FieldLabel}" />
+                                        <DatePicker SelectedDate="{Binding UfEnd}" />
+                                    </StackPanel>
+                                    <Button Style="{StaticResource ActionButton}" VerticalAlignment="Bottom"
+                                            Command="{Binding EmitByUfCommand}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="&#xE768;" Style="{StaticResource IconGlyph}" />
+                                            <TextBlock Text="Emitir CT-es por UF" />
+                                        </StackPanel>
+                                    </Button>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- ================= Cancelamento -->
+                    <StackPanel Visibility="{Binding Page, Converter={StaticResource PageVisible}, ConverterParameter=Cancel}">
+                        <TextBlock Text="Cancelamento" Style="{StaticResource PageTitle}" />
+                        <TextBlock Style="{StaticResource PageHint}" Margin="0,4,0,20"
+                                   Text="Cancela CT-es no Bsoft e remove o número do protocolo no sistema. O cancelamento de um CT-e não pode ser desfeito." />
+
+                        <Border Style="{StaticResource CardBorder}">
+                            <StackPanel>
+                                <TextBlock Text="Serviços cancelados no período" Style="{StaticResource CardTitle}" />
+                                <TextBlock Style="{StaticResource CardHint}"
+                                           Text="Cancela os CT-es normais e complementares dos serviços cancelados ou sem sucesso." />
+                                <StackPanel Orientation="Horizontal">
+                                    <StackPanel Margin="0,0,16,0">
+                                        <TextBlock Text="Data inicial" Style="{StaticResource FieldLabel}" />
+                                        <DatePicker SelectedDate="{Binding CancelStart}" />
+                                    </StackPanel>
+                                    <StackPanel Margin="0,0,22,0">
+                                        <TextBlock Text="Data final" Style="{StaticResource FieldLabel}" />
+                                        <DatePicker SelectedDate="{Binding CancelEnd}" />
+                                    </StackPanel>
+                                    <Button Style="{StaticResource DangerButton}" VerticalAlignment="Bottom"
+                                            Command="{Binding CancelBatchCommand}" Content="Cancelar lista de CT-e" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource CardBorder}">
+                            <StackPanel>
+                                <TextBlock Text="Cancelamento avulso" Style="{StaticResource CardTitle}" />
+                                <TextBlock Style="{StaticResource CardHint}"
+                                           Text="Cancela um CT-e e limpa o número no protocolo informado." />
+                                <StackPanel Orientation="Horizontal">
+                                    <StackPanel Margin="0,0,16,0">
+                                        <TextBlock Text="Nº do CT-e" Style="{StaticResource FieldLabel}" />
+                                        <TextBox Style="{StaticResource Field}" Width="160" Tag="digits"
+                                                 Text="{Binding CancelCte, UpdateSourceTrigger=PropertyChanged}" />
+                                    </StackPanel>
+                                    <StackPanel Margin="0,0,22,0">
+                                        <TextBlock Text="Protocolo" Style="{StaticResource FieldLabel}" />
+                                        <TextBox Style="{StaticResource Field}" Width="160" Tag="digits"
+                                                 Text="{Binding CancelProtocol, UpdateSourceTrigger=PropertyChanged}" />
+                                    </StackPanel>
+                                    <Button Style="{StaticResource DangerButton}" VerticalAlignment="Bottom"
+                                            Command="{Binding CancelSingleCommand}" Content="Cancelar avulso" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- ================= Utilitários -->
+                    <StackPanel Visibility="{Binding Page, Converter={StaticResource PageVisible}, ConverterParameter=Tools}">
+                        <TextBlock Text="Utilitários" Style="{StaticResource PageTitle}" />
+                        <TextBlock Style="{StaticResource PageHint}" Margin="0,4,0,20"
+                                   Text="Rotinas de conferência e de apoio fiscal. Os relatórios usados aqui são escolhidos em Configurações." />
+
+                        <Border Style="{StaticResource CardBorder}">
+                            <StackPanel>
+                                <TextBlock Text="CT-e simbólico" Style="{StaticResource CardTitle}" />
+                                <TextBlock Style="{StaticResource CardHint}"
+                                           Text="Emite só os simbólicos do período, ou remove do sistema a numeração dos simbólicos já emitidos. É o mesmo período da página Emissão." />
+                                <StackPanel Orientation="Horizontal">
+                                    <StackPanel Margin="0,0,16,0">
+                                        <TextBlock Text="Data inicial" Style="{StaticResource FieldLabel}" />
+                                        <DatePicker SelectedDate="{Binding EmissionStart}" />
+                                    </StackPanel>
+                                    <StackPanel Margin="0,0,22,0">
+                                        <TextBlock Text="Data final" Style="{StaticResource FieldLabel}" />
+                                        <DatePicker SelectedDate="{Binding EmissionEnd}" />
+                                    </StackPanel>
+                                    <Button Style="{StaticResource ActionButton}" VerticalAlignment="Bottom" Margin="0,0,10,0"
+                                            Command="{Binding EmitSymbolicCommand}" Content="Emitir CT-e simbólico" />
+                                    <Button Style="{StaticResource QuietButton}" VerticalAlignment="Bottom"
+                                            Command="{Binding ClearSymbolicCommand}" Content="Limpar CT-e simbólico" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource CardBorder}">
+                            <StackPanel>
+                                <TextBlock Text="Conferência com o Bsoft" Style="{StaticResource CardTitle}" />
+                                <TextBlock Style="{StaticResource CardHint}">
+                                    <Run Text="Relatório B-soft:" /> <Run Text="{Binding BsoftReportName, Mode=OneWay}" FontWeight="SemiBold" />
+                                </TextBlock>
+                                <StackPanel Orientation="Horizontal">
+                                    <Button Style="{StaticResource QuietButton}" Margin="0,0,10,0"
+                                            Command="{Binding OpenConferenceCommand}" Content="Conferência de tomador" />
+                                    <Button Style="{StaticResource DangerButton}"
+                                            Command="{Binding ValidateAndCancelCommand}"
+                                            Content="Validar e cancelar CT-es (B-soft)"
+                                            ToolTip="Cancela os CT-es do relatório que o sistema LogLife não conhece." />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource CardBorder}">
+                            <StackPanel>
+                                <TextBlock Text="GNRE" Style="{StaticResource CardTitle}" />
+                                <TextBlock Style="{StaticResource CardHint}">
+                                    <Run Text="Relatório Target:" /> <Run Text="{Binding TargetReportName, Mode=OneWay}" FontWeight="SemiBold" />
+                                    <LineBreak />
+                                    <Run Text="A comparação gera a planilha comparar-GNRE; para lançar as guias, selecione essa planilha como Relatório Target." />
+                                </TextBlock>
+                                <StackPanel Orientation="Horizontal">
+                                    <Button Style="{StaticResource QuietButton}" Margin="0,0,10,0"
+                                            Command="{Binding CompareGnreCommand}" Content="Comparar GNRE (B-soft × Target)" />
+                                    <Button Style="{StaticResource ActionButton}"
+                                            Command="{Binding EnterSlipsCommand}" Content="Lançar guias de ICMS" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- ================= Pendências -->
+                    <StackPanel Visibility="{Binding Page, Converter={StaticResource PageVisible}, ConverterParameter=Pending}">
+                        <TextBlock Text="Pendências" Style="{StaticResource PageTitle}" />
+                        <TextBlock Style="{StaticResource PageHint}" Margin="0,4,0,20"
+                                   Text="CT-es que foram enviados ao Bsoft mas não terminaram de ser registrados no sistema. Enquanto um protocolo estiver aqui, ele não é emitido de novo." />
+
+                        <Border Style="{StaticResource CardBorder}"
+                                Visibility="{Binding HasPending, Converter={StaticResource Hidden}}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE73E;" FontFamily="{StaticResource Icons}" FontSize="18"
+                                           Foreground="{StaticResource Success}" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                <TextBlock Text="Nenhuma pendência. Todas as emissões foram registradas."
+                                           FontSize="13.5" Foreground="{StaticResource Ink}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Border>
+
+                        <ItemsControl ItemsSource="{Binding Pending}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Style="{StaticResource CardBorder}" Padding="20,14">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel>
+                                                <TextBlock FontSize="14.5" FontWeight="SemiBold" Foreground="{StaticResource Ink}">
+                                                    <Run Text="Protocolo" /> <Run Text="{Binding Protocol, Mode=OneWay}" />
+                                                    <Run Text="  ·  CT-e" /> <Run Text="{Binding Number, Mode=OneWay}" />
+                                                </TextBlock>
+                                                <TextBlock Text="{Binding Stage}" FontSize="13" Foreground="{StaticResource Warning}"
+                                                           Margin="0,3,0,0" />
+                                                <TextBlock FontSize="12" Foreground="{StaticResource InkFaint}" Margin="0,3,0,0">
+                                                    <Run Text="{Binding Kind, Mode=OneWay}" /> <Run Text="·" /> <Run Text="{Binding When, Mode=OneWay}" />
+                                                </TextBlock>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                                <Button Style="{StaticResource ActionButton}" Content="Reenviar" Margin="0,0,8,0"
+                                                        Visibility="{Binding HasNumber, Converter={StaticResource Visible}}"
+                                                        Command="{Binding DataContext.RetryPendingCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                        CommandParameter="{Binding}" />
+                                                <Button Style="{StaticResource ActionButton}" Content="Informar número" Margin="0,0,8,0"
+                                                        Visibility="{Binding NeedsNumber, Converter={StaticResource Visible}}"
+                                                        Command="{Binding DataContext.SetPendingNumberCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                        CommandParameter="{Binding}" />
+                                                <Button Style="{StaticResource QuietButton}" Content="Marcar como resolvido"
+                                                        Command="{Binding DataContext.ResolvePendingCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                        CommandParameter="{Binding}" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+
+                    <!-- ================= Configurações -->
+                    <StackPanel Visibility="{Binding Page, Converter={StaticResource PageVisible}, ConverterParameter=Settings}">
+                        <TextBlock Text="Configurações" Style="{StaticResource PageTitle}" />
+                        <TextBlock Style="{StaticResource PageHint}" Margin="0,4,0,20"
+                                   Text="Pastas, relatórios e acesso ao sistema. Tudo é salvo na hora, neste computador." />
+
+                        <Border Style="{StaticResource CardBorder}">
+                            <StackPanel>
+                                <TextBlock Text="Pastas e relatórios" Style="{StaticResource CardTitle}" Margin="0,0,0,14" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="170" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="46" />
+                                        <RowDefinition Height="46" />
+                                        <RowDefinition Height="46" />
+                                        <RowDefinition Height="46" />
+                                        <RowDefinition Height="46" />
+                                    </Grid.RowDefinitions>
+
+                                    <TextBlock Text="CT-e normal" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" Margin="0" />
+                                    <TextBox Grid.Column="1" Style="{StaticResource Field}" IsReadOnly="True" Text="{Binding NormalFolder, Mode=OneWay}"
+                                             ToolTip="Onde ficam as planilhas de conferência das emissões normais e unificadas." />
+                                    <Button Grid.Column="2" Style="{StaticResource QuietButton}" Margin="10,0,0,0" Content="Procurar"
+                                            Command="{Binding BrowseCommand}" CommandParameter="normal" />
+
+                                    <TextBlock Grid.Row="1" Text="CT-e complementar" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" Margin="0" />
+                                    <TextBox Grid.Row="1" Grid.Column="1" Style="{StaticResource Field}" IsReadOnly="True"
+                                             Text="{Binding ComplementaryFolder, Mode=OneWay}" />
+                                    <Button Grid.Row="1" Grid.Column="2" Style="{StaticResource QuietButton}" Margin="10,0,0,0" Content="Procurar"
+                                            Command="{Binding BrowseCommand}" CommandParameter="complementary" />
+
+                                    <TextBlock Grid.Row="2" Text="Pasta CTE (PDFs)" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" Margin="0" />
+                                    <TextBox Grid.Row="2" Grid.Column="1" Style="{StaticResource Field}" IsReadOnly="True"
+                                             Text="{Binding CtePdfFolder, Mode=OneWay}"
+                                             ToolTip="Pasta onde o Bsoft grava o PDF de cada CT-e emitido." />
+                                    <Button Grid.Row="2" Grid.Column="2" Style="{StaticResource QuietButton}" Margin="10,0,0,0" Content="Procurar"
+                                            Command="{Binding BrowseCommand}" CommandParameter="pdf" />
+
+                                    <TextBlock Grid.Row="3" Text="Relatório B-soft" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" Margin="0" />
+                                    <TextBox Grid.Row="3" Grid.Column="1" Style="{StaticResource Field}" IsReadOnly="True"
+                                             Text="{Binding BsoftReportPath, Mode=OneWay}" />
+                                    <Button Grid.Row="3" Grid.Column="2" Style="{StaticResource QuietButton}" Margin="10,0,0,0" Content="Procurar"
+                                            Command="{Binding BrowseCommand}" CommandParameter="bsoft" />
+
+                                    <TextBlock Grid.Row="4" Text="Relatório Target" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" Margin="0" />
+                                    <TextBox Grid.Row="4" Grid.Column="1" Style="{StaticResource Field}" IsReadOnly="True"
+                                             Text="{Binding TargetReportPath, Mode=OneWay}" />
+                                    <Button Grid.Row="4" Grid.Column="2" Style="{StaticResource QuietButton}" Margin="10,0,0,0" Content="Procurar"
+                                            Command="{Binding BrowseCommand}" CommandParameter="target" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource CardBorder}">
+                            <StackPanel>
+                                <TextBlock Text="Acesso ao sistema LogLife" Style="{StaticResource CardTitle}" />
+                                <TextBlock Style="{StaticResource CardHint}"
+                                           Text="O login fica guardado neste computador, criptografado pela sua conta do Windows. Deixe a senha em branco para manter a atual." />
+                                <StackPanel Orientation="Horizontal">
+                                    <StackPanel Margin="0,0,14,0">
+                                        <TextBlock Text="Usuário (e-mail)" Style="{StaticResource FieldLabel}" />
+                                        <TextBox Style="{StaticResource Field}" Width="250"
+                                                 Text="{Binding ApiUser, UpdateSourceTrigger=PropertyChanged}" />
+                                    </StackPanel>
+                                    <StackPanel Margin="0,0,18,0">
+                                        <TextBlock Text="Senha" Style="{StaticResource FieldLabel}" />
+                                        <PasswordBox x:Name="ApiPassword" Width="200" Height="36" FontSize="13.5"
+                                                     VerticalContentAlignment="Center" />
+                                    </StackPanel>
+                                    <Button Style="{StaticResource ActionButton}" VerticalAlignment="Bottom" Content="Salvar"
+                                            Click="OnSaveCredentials" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,10,0,0"
+                                            Visibility="{Binding HasStoredPassword, Converter={StaticResource Visible}}">
+                                    <TextBlock Text="&#xE73E;" FontFamily="{StaticResource Icons}" FontSize="13"
+                                               Foreground="{StaticResource Success}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                    <TextBlock Text="Há um login salvo." FontSize="12.5" Foreground="{StaticResource InkSoft}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource CardBorder}">
+                            <StackPanel>
+                                <TextBlock Text="Execução" Style="{StaticResource CardTitle}" Margin="0,0,0,12" />
+                                <CheckBox Content="Mostrar o painel de execução na borda esquerda da tela (o padrão é a direita)"
+                                          IsChecked="{Binding OverlayOnLeft}" FontSize="13.5" Margin="0,0,0,8" />
+                                <CheckBox IsChecked="{Binding HideOverlayFromCapture}" FontSize="13.5" Margin="0,0,0,2"
+                                          Content="Ocultar o painel das capturas de tela" />
+                                <TextBlock Style="{StaticResource CardHint}" Margin="28,0,0,12"
+                                           Text="Mantém o painel fora da imagem que o robô analisa, para nunca encobrir um campo do Bsoft. Quem assiste por acesso remoto também deixa de vê-lo." />
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                    <TextBlock Text="Esperar o PDF do CT-e por até" FontSize="13.5" VerticalAlignment="Center"
+                                               Foreground="{StaticResource Ink}" />
+                                    <TextBox Style="{StaticResource Field}" Width="64" Margin="8,0" Tag="digits"
+                                             Text="{Binding PdfWaitSeconds, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock Text="segundos antes de deixar a emissão em Pendências" FontSize="13.5"
+                                               VerticalAlignment="Center" Foreground="{StaticResource Ink}" />
+                                </StackPanel>
+                                <CheckBox Content="Verificar atualizações ao abrir" IsChecked="{Binding CheckUpdatesOnStartup}"
+                                          FontSize="13.5" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource CardBorder}">
+                            <StackPanel>
+                                <TextBlock Text="Telas desconhecidas" Style="{StaticResource CardTitle}" />
+                                <TextBlock Style="{StaticResource CardHint}"
+                                           Text="Quando um elemento esperado não aparece no Bsoft, o robô captura a tela, para e espera você resolver. Ele continua quando você clicar em Continuar no painel." />
+                                <CheckBox IsChecked="{Binding LearnUnknownScreens}" FontSize="13.5" Margin="0,0,0,2"
+                                          Content="Gravar o que eu fizer na tela e repetir quando ela aparecer de novo" />
+                                <TextBlock Style="{StaticResource CardHint}" Margin="28,0,0,12"
+                                           Text="São gravados cliques e as teclas Enter, Esc, Tab, Espaço, setas e Alt+letra. Texto digitado nunca é gravado: nesse caso a tela só fica registrada na atividade, com a captura." />
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding LearnedScreensText}" FontSize="13.5" Foreground="{StaticResource Ink}"
+                                               VerticalAlignment="Center" Margin="0,0,14,0" />
+                                    <Button Style="{StaticResource QuietButton}" Height="32" MinWidth="0" Padding="12,0" Margin="0,0,8,0"
+                                            Content="Ver telas aprendidas" Command="{Binding OpenLearnedScreensCommand}" />
+                                    <Button Style="{StaticResource QuietButton}" Height="32" MinWidth="0" Padding="12,0" Margin="0,0,8,0"
+                                            Content="Ver capturas" Command="{Binding OpenUnknownScreenshotsCommand}" />
+                                    <Button Style="{StaticResource QuietButton}" Height="32" MinWidth="0" Padding="12,0"
+                                            Content="Esquecer todas" Command="{Binding ForgetLearnedScreensCommand}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Grid>
+            </ScrollViewer>
+
+            <!-- ============================================================ activity -->
+            <Border Grid.Row="1" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0">
+                <Grid Margin="34,12,34,14">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="118" />
+                    </Grid.RowDefinitions>
+                    <DockPanel>
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"
+                                    Visibility="{Binding IsBusy, Converter={StaticResource Visible}}">
+                            <Button Style="{StaticResource QuietButton}" Height="30" MinWidth="0" Padding="12,0" Margin="0,0,8,0"
+                                    Command="{Binding TogglePauseCommand}" Content="Pausar / continuar" />
+                            <Button Style="{StaticResource QuietButton}" Height="30" MinWidth="0" Padding="12,0"
+                                    Command="{Binding StopCommand}" Content="Parar" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Atividade" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource InkSoft}"
+                                       VerticalAlignment="Center" />
+                            <Border Width="1" Height="14" Background="{StaticResource Line}" Margin="12,0" />
+                            <ProgressBar IsIndeterminate="{Binding IsBusy}" Width="90" Height="4" Margin="0,0,10,0"
+                                         VerticalAlignment="Center" Foreground="{StaticResource Brand}"
+                                         Visibility="{Binding IsBusy, Converter={StaticResource Visible}}" />
+                            <TextBlock Text="{Binding StatusText}" FontSize="12.5" Foreground="{StaticResource Ink}"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                    </DockPanel>
+                    <ListBox x:Name="LogList" Grid.Row="1" Margin="0,8,0,0" ItemsSource="{Binding Log}"
+                             BorderThickness="0" Background="Transparent" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             VirtualizingPanel.ScrollUnit="Pixel">
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem">
+                                <Setter Property="Focusable" Value="False" />
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="ListBoxItem">
+                                            <ContentPresenter Margin="0,2" />
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="62" />
+                                        <ColumnDefinition Width="24" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding TimeText}" FontSize="12" Foreground="{StaticResource InkFaint}"
+                                               FontFamily="Cascadia Mono, Consolas" />
+                                    <TextBlock x:Name="LevelGlyph" Grid.Column="1" Text="{Binding Glyph}"
+                                               FontFamily="{StaticResource Icons}" FontSize="12" VerticalAlignment="Center"
+                                               Foreground="{StaticResource InkFaint}" />
+                                    <TextBlock x:Name="LineText" Grid.Column="2" Text="{Binding Message}" FontSize="12.5"
+                                               Foreground="{StaticResource Ink}" TextTrimming="CharacterEllipsis"
+                                               ToolTip="{Binding Message}" />
+                                </Grid>
+                                <DataTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding Level}" Value="ERRO">
+                                        <Setter TargetName="LevelGlyph" Property="Foreground" Value="{StaticResource Danger}" />
+                                        <Setter TargetName="LineText" Property="Foreground" Value="{StaticResource Danger}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Level}" Value="AVISO">
+                                        <Setter TargetName="LevelGlyph" Property="Foreground" Value="{StaticResource Warning}" />
+                                    </DataTrigger>
+                                </DataTemplate.Triggers>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>
