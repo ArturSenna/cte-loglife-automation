@@ -21,9 +21,38 @@ public sealed class RunControl
     private bool _paused;
     private int _critical;
     private OperatorAttention? _attention;
+    private string? _pauseNote;
 
     /// <summary>Set while the bot waits in <see cref="WaitForOperator"/>.</summary>
     public OperatorAttention? Attention { get { lock (_gate) return _attention; } }
+
+    /// <summary>
+    /// Something the operator should know while the bot is paused (for instance that Bsoft was used
+    /// and what the bot will do about it when it continues). Null when there is nothing to say.
+    /// </summary>
+    public string? PauseNote { get { lock (_gate) return _pauseNote; } }
+
+    public void SetPauseNote(string? note)
+    {
+        lock (_gate)
+        {
+            if (_pauseNote == note) return;
+            _pauseNote = note;
+        }
+        Changed?.Invoke();
+    }
+
+    /// <summary>
+    /// The stop half of <see cref="Checkpoint"/>: throws when a stop was requested, never waits. For the
+    /// places where a pause must not start, in the middle of a step.
+    /// </summary>
+    public void ThrowIfStopped()
+    {
+        lock (_gate)
+        {
+            if (_critical == 0 && _stopRequested) throw new RunStoppedException();
+        }
+    }
 
     /// <summary>Raised (on the calling thread) whenever pause, stop or critical state changes.</summary>
     public event Action? Changed;
@@ -52,6 +81,7 @@ public sealed class RunControl
         _paused = false;
         _critical = 0;
         _attention = null;
+        _pauseNote = null;
     });
 
     public void BeginCritical() => Update(() => _critical++);

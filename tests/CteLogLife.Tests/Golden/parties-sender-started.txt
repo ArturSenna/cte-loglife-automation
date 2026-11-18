@@ -1,0 +1,25 @@
+clipboard-clear
+move 272,336
+click
+move 171,60
+click
+move 258,44
+click
+click
+clipboard 11111111000111
+down Control
+char v
+up Control
+move 444,32
+click
+move 577,56
+click
+move 258,44
+click
+click
+clipboard 33333333000133
+down Control
+char v
+up Control
+move 444,32
+click

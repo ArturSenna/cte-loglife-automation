@@ -217,7 +217,12 @@ public sealed class AppHost : IDisposable
         {
             Learn = Settings.LearnUnknownScreens,
         };
-        var driver = new BsoftDriver(new DesktopBot(templates, new ScreenGrabber(), Control, Log, unknown), Log);
+        var bot = new DesktopBot(templates, new ScreenGrabber(), Control, Log, unknown,
+            pauseWatcher: () => new PauseWatcher())
+        {
+            Adaptive = Settings.AdaptiveWaits,
+        };
+        var driver = new BsoftDriver(bot, Log);
         lock (_drivers) _drivers.Add(driver);
         return driver;
     }

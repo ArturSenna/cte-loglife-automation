@@ -1,0 +1,63 @@
+move 50,29
+click
+move 358,356
+click
+char 1
+char 2
+char 3
+char 4
+char 5
+char 6
+tap Tab
+tap Tab
+tap Tab
+char 4
+char 5
+char ,
+char 6
+char 7
+move 640,368
+click
+clipboard 7001
+down Control
+char v
+up Control
+tap Enter
+move 738,349
+click
+click
+person C
+person C
+person  
+person L
+person O
+person G
+person L
+person I
+person F
+person E
+tap Enter
+move 853,337
+click
+move 971,352
+click
+clipboard BANCO BRADESCO
+down Control
+char v
+up Control
+tap Enter
+move 1137,352
+click
+clipboard 8581000000045670
+down Control
+char v
+up Control
+tap Enter
+move 1294,351
+click
+clipboard REF. A ICMS ST 18/11/2026
+down Control
+char v
+up Control
+move 1570,28
+click

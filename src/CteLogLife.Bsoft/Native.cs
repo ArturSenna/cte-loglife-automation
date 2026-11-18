@@ -161,6 +161,15 @@ internal static class Native
     public static extern bool SetForegroundWindow(IntPtr window);
 
     [DllImport("user32.dll")]
+    public static extern bool GetWindowRect(IntPtr window, out RECT rectangle);
+
+    [DllImport("winmm.dll")]
+    public static extern uint timeBeginPeriod(uint milliseconds);
+
+    [DllImport("winmm.dll")]
+    public static extern uint timeEndPeriod(uint milliseconds);
+
+    [DllImport("user32.dll")]
     public static extern bool IsWindow(IntPtr window);
 
     [DllImport("user32.dll")]

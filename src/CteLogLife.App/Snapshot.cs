@@ -205,18 +205,84 @@ internal static class Snapshot
             ? "RESULT recorder: sees keys and clicks at the right place"
             : "RESULT recorder: NOT working on this machine (unknown screens will only be logged)");
 
-        // Typing in the search box needs the keyboard, and it must come back when the pause ends.
+        // The hint of a reorder button, opened the way hovering opens it. It used to take the button's
+        // icon font and show empty boxes instead of letters.
+        if (Buttons(overlay).FirstOrDefault(button => button.ToolTip is "Subir") is { } arrow)
+        {
+            var tip = new System.Windows.Controls.ToolTip { Content = "Subir", PlacementTarget = arrow, IsOpen = true };
+            Settle(250);
+            var font = tip.FontFamily.Source;
+            lines.Add($"hint of a reorder button uses the font: {font}");
+            lines.Add(font.Contains("Segoe UI", StringComparison.Ordinal) && !font.Contains("Icons", StringComparison.Ordinal) && !font.Contains("MDL2", StringComparison.Ordinal)
+                ? "RESULT hints: shown with letters"
+                : "RESULT hints: WRONG font, the text shows as boxes");
+            tip.IsOpen = false;
+        }
+        else
+        {
+            lines.Add("RESULT hints: no reorder button found to test");
+        }
+
+        // Typing in the search box, the way the operator does it: a real click on the box while another
+        // program has the keyboard, then a real key. What counts is where Windows sends the keys, not
+        // what WPF believes: the box only has the keyboard when the panel is the foreground window.
+        var hand = new Bsoft.SendInputRecovery();
         var before = Interop.ForegroundWindow();
-        var focused = overlay.FocusSearch();
-        Pump();
-        lines.Add($"search box took the keyboard when asked: {(focused && overlay.IsActive ? "yes" : "NO")}");
+        lines.Add($"keyboard before the click on the search box: {(Interop.IsOurs(before) ? "this program" : "another program")}");
+        var box = overlay.SearchBoxPoint();
+        hand.Click((int)box.X, (int)box.Y, Bsoft.RecordedKind.Click);
+        Settle(500);
+        var tookKeyboard = Interop.IsForeground(overlay);
+        lines.Add($"search box took the keyboard on a real click: {(tookKeyboard ? "yes" : "NO")}");
+        if (tookKeyboard)
+        {
+            // Only typed when the panel really has the keyboard, so the key cannot land anywhere else.
+            hand.Key('7', alt: false, shift: false);
+            Settle(400);
+            lines.Add($"a typed key reached the search box: {(overlay.ViewModel.SearchText == "7" ? "yes" : $"NO (the box has \"{overlay.ViewModel.SearchText}\")")}");
+        }
+        lines.Add(tookKeyboard && overlay.ViewModel.SearchText == "7"
+            ? "RESULT search box: a click gives it the keyboard and typing works"
+            : "RESULT search box: typing does NOT work on this machine");
+
+        // What tells the bot that Bsoft was used during a pause: the same hooks, watching one program.
+        // Here the watched program is this one (the panel has the keyboard now), then another one.
+        if (tookKeyboard)
+        {
+            int seenHere = 0, seenElsewhere = 0;
+            var watchingThis = Bsoft.InputRecorder.ForSelfTest((uint)Environment.ProcessId, () => Interlocked.Increment(ref seenHere));
+            watchingThis.Start();
+            hand.Key(0x87, alt: false, shift: false); // F24: no program uses it
+            Settle(250);
+            watchingThis.Stop();
+            var watchingOther = Bsoft.InputRecorder.ForSelfTest(4, () => Interlocked.Increment(ref seenElsewhere));
+            watchingOther.Start();
+            hand.Key(0x87, alt: false, shift: false);
+            Settle(250);
+            watchingOther.Stop();
+            lines.Add($"pause watcher noticed a key sent to the watched program: {(seenHere > 0 ? "yes" : "NO")}");
+            lines.Add($"pause watcher ignored a key sent to another program: {(seenElsewhere == 0 ? "yes" : "NO")}");
+            lines.Add(seenHere > 0 && seenElsewhere == 0
+                ? "RESULT pause watcher: tells apart what is typed into the watched program"
+                : "RESULT pause watcher: NOT working on this machine (nothing is redone after a pause)");
+        }
+        var owner = overlay.KeyboardOwner;
+        lines.Add($"window the panel will hand the keyboard back to: {(owner == IntPtr.Zero ? "NONE remembered" : owner == before ? "the one that had it before the click" : "the one that had it when the pause began")}");
         control.Resume();
         parked.Join();
         overlay.RefreshNow();
-        Pump();
-        Thread.Sleep(300);
-        Pump();
-        lines.Add($"keyboard given back after the pause: {(Interop.ForegroundWindow() == before || !overlay.IsActive ? "yes" : "NO")}");
+        Settle(400);
+        var after = Interop.ForegroundWindow();
+        var holder = Interop.IsForeground(overlay) ? "still the panel"
+            : after == owner ? "the window the panel remembered"
+            : Interop.IsOurs(after) ? "another window of this program"
+            : "a third window";
+        lines.Add($"keyboard after the pause: {holder}");
+        lines.Add(owner != IntPtr.Zero && after == owner
+            ? "RESULT keyboard: given back when the pause ends"
+            : Interop.IsForeground(overlay)
+                ? "RESULT keyboard: NOT given back, the panel kept it"
+                : "RESULT keyboard: the panel let go of it, but not to the window it remembered");
 
         // The panel stays open until the end: closing the app's last window would start its shutdown.
         try
@@ -229,6 +295,28 @@ internal static class Snapshot
         }
         overlay.Close();
         File.WriteAllLines(reportPath, lines);
+    }
+
+    private static IEnumerable<System.Windows.Controls.Button> Buttons(DependencyObject root)
+    {
+        for (var i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            var child = System.Windows.Media.VisualTreeHelper.GetChild(root, i);
+            if (child is System.Windows.Controls.Button button) yield return button;
+            foreach (var nested in Buttons(child)) yield return nested;
+        }
+    }
+
+    /// <summary>Lets the windows react for a while (messages keep being handled).</summary>
+    private static void Settle(int ms)
+    {
+        var until = Environment.TickCount64 + ms;
+        while (Environment.TickCount64 < until)
+        {
+            Pump();
+            Thread.Sleep(20);
+        }
+        Pump();
     }
 
     private sealed class LineLog(List<string> lines) : IRunLog
@@ -346,7 +434,8 @@ internal static class Snapshot
             using var templateStore = new Bsoft.TemplateStore(templates);
             var unknown = new Bsoft.UnknownScreens(store, control, log, Path.Combine(root, "shots"),
                 Bsoft.InputRecorder.ForSelfTest);
-            using var bot = new Bsoft.DesktopBot(templateStore, new Bsoft.ScreenGrabber(), control, log, unknown)
+            using var bot = new Bsoft.DesktopBot(templateStore, new Bsoft.ScreenGrabber(), control, log, unknown,
+                new Bsoft.RealDesktop { WatchOwnWindows = true })
             {
                 RecoverAfterMs = 400,
                 RecoverEveryMs = 300,
@@ -384,6 +473,46 @@ internal static class Snapshot
             lines.Add(stopped && solved && store.Count == 1 && alone
                 ? "RESULT unknown screen: stop, learn and repeat work on this machine"
                 : "RESULT unknown screen: NOT working end to end on this machine (see the log lines above)");
+
+            // How long the bot waits after a click, with the real screen and the real clock. It used to
+            // be 400 ms every time (100 before the click, 300 after). On a window that answers at once
+            // the bot must now go on sooner; on one that does not answer it must still wait the 400.
+            if (alone)
+            {
+                using (var grabber = new Bsoft.ScreenGrabber())
+                {
+                    var watch = System.Diagnostics.Stopwatch.StartNew();
+                    for (var i = 0; i < 5; i++) grabber.Capture().Dispose();
+                    lines.Add($"one look at the screen takes: {watch.ElapsedMilliseconds / 5} ms");
+                }
+
+                long TimedClick()
+                {
+                    var click = Task.Run(() =>
+                    {
+                        bot.Require("autoteste", waitMs: 3000);
+                        var watch = System.Diagnostics.Stopwatch.StartNew();
+                        bot.Click();
+                        return watch.ElapsedMilliseconds;
+                    });
+                    return PumpUntil(() => click.IsCompleted, 8000) && click.IsCompletedSuccessfully ? click.Result : -1;
+                }
+
+                TimedClick(); // not counted: the first click may activate the window, which repaints others
+                var quiet = TimedClick(); // the window does nothing when clicked
+                // Now it answers: its text changes colour. The bot only looks for the answer inside the
+                // window that has the keyboard, which the clicks above gave to this one.
+                target.PreviewMouseLeftButtonDown += (_, _) =>
+                    ((System.Windows.Controls.TextBlock)target.Content).Foreground = Brushes.OrangeRed;
+                lines.Add($"the clicked window has the keyboard: {(Interop.IsForeground(target) ? "yes" : "no (the timing below is then measured on the whole screen)")}");
+                var answered = TimedClick();
+
+                lines.Add($"click on a window that does not answer: {quiet} ms (the fixed wait was 400 ms)");
+                lines.Add($"click on a window that answers at once: {answered} ms");
+                lines.Add(quiet is >= 380 and < 520 && answered is > 0 and < 330
+                    ? "RESULT timing: the bot goes on when the screen answers, and keeps the old wait when it does not"
+                    : "RESULT timing: NOT as expected on this machine (use the fixed waits in Configurações if fields come out wrong)");
+            }
         }
         finally
         {
@@ -462,6 +591,14 @@ internal static class Snapshot
         queue.Add(new QueueItem("9", "48300 · LAB URGENTE", "NORMAL · BELO HORIZONTE → SALVADOR"), next: true);
         Pump();
         Save(overlay, Path.Combine(folder, "overlay-Included.png"));
+
+        // Bsoft was used while paused: what the bot will do about it on continuing.
+        overlay.ViewModel.Say("");
+        control.SetPauseNote("O Bsoft foi usado durante a pausa. Ao continuar, o robô refaz o passo \"Pesos e volumes\".");
+        overlay.RefreshNow();
+        Pump();
+        Save(overlay, Path.Combine(folder, "overlay-PauseNote.png"));
+        control.SetPauseNote(null);
 
         control.Resume();
         worker.Join();

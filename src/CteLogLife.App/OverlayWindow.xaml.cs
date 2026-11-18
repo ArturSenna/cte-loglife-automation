@@ -5,6 +5,7 @@ using System.Media;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CteLogLife.Core.Automation;
@@ -32,6 +33,8 @@ public partial class OverlayViewModel : ObservableObject
     [ObservableProperty] private string _step = "";
     [ObservableProperty] private bool _isPaused;
     [ObservableProperty] private string _pausedText = "";
+    [ObservableProperty] private string _pauseNote = "";
+    [ObservableProperty] private bool _hasPauseNote;
     [ObservableProperty] private string _hint = "";
     [ObservableProperty] private bool _hasHint;
     [ObservableProperty] private string _upcomingCount = "";
@@ -141,6 +144,8 @@ public partial class OverlayViewModel : ObservableObject
         HasScreenshot = ScreenshotPath is not null;
 
         IsPaused = paused;
+        PauseNote = paused ? control.PauseNote ?? "" : "";
+        HasPauseNote = PauseNote.Length > 0;
         PausedText = attention is not null
             ? "O robô só continua quando você mandar."
             : canInclude
@@ -181,10 +186,11 @@ public partial class OverlayViewModel : ObservableObject
 
 /// <summary>
 /// The panel docked to the screen edge while the bot works: what is being emitted, what comes next
-/// and the pause shortcuts. While the bot runs it lets every click through and never takes the
+/// and the pause shortcuts. While the bot runs it lets every click through and can never take the
 /// keyboard. Once the bot is actually paused it becomes clickable: the queue can be reordered,
-/// searched and added to. It only takes the keyboard when the search box is clicked, and gives it
-/// back to the window that had it when the pause ends.
+/// searched and added to. A click on the search box is the only thing that gives it the keyboard
+/// (Windows itself activates it, see <see cref="WindowHook"/>), and the window that had the keyboard
+/// gets it back when the pause ends.
 /// </summary>
 public partial class OverlayWindow : Window
 {
@@ -197,6 +203,7 @@ public partial class OverlayWindow : Window
     private bool _refreshQueued;
     private bool _closed;
     private bool _hadAttention;
+    private bool _wasPaused;
     private IntPtr _focusOwner;
 
     public OverlayWindow(AppHost host) : this(host.Queue, host.Control, host.Settings.OverlayOnLeft)
@@ -225,7 +232,9 @@ public partial class OverlayWindow : Window
         {
             Interop.MakeOverlay(this);
             Interop.SetClickThrough(this, true);
-            if (_host?.Settings.HideOverlayFromCapture == true && !Interop.ExcludeFromCapture(this, true))
+            ((HwndSource)PresentationSource.FromVisual(this)!).AddHook(WindowHook);
+            HiddenFromCapture = _host?.Settings.HideOverlayFromCapture == true && Interop.ExcludeFromCapture(this, true);
+            if (_host?.Settings.HideOverlayFromCapture == true && !HiddenFromCapture)
                 _host.Log.Warn("Este Windows não permite ocultar o painel das capturas de tela; mantenha-o fora dos campos do Bsoft.");
         };
         if (dock)
@@ -251,6 +260,21 @@ public partial class OverlayWindow : Window
     }
 
     public OverlayViewModel ViewModel => _viewModel;
+
+    /// <summary>True when the panel is kept out of screenshots (its tooltips follow it).</summary>
+    public bool HiddenFromCapture { get; set; }
+
+    static OverlayWindow()
+    {
+        // A tooltip is a window of its own: without this it would show up in the bot's screenshots
+        // even though the panel does not.
+        EventManager.RegisterClassHandler(typeof(System.Windows.Controls.ToolTip), System.Windows.Controls.ToolTip.OpenedEvent, new RoutedEventHandler((sender, _) =>
+        {
+            if (sender is not System.Windows.Controls.ToolTip { PlacementTarget: { } target } tip) return;
+            if (GetWindow(target) is not OverlayWindow { HiddenFromCapture: true }) return;
+            if (PresentationSource.FromVisual(tip) is HwndSource source) Interop.ExcludeFromCapture(source.Handle, true);
+        }));
+    }
 
     private void Dock(bool onLeft)
     {
@@ -278,7 +302,14 @@ public partial class OverlayWindow : Window
         _viewModel.Refresh(_queue, _control);
         var paused = _control.IsPaused;
         Interop.SetClickThrough(this, !paused);
+        if (paused && !_wasPaused)
+        {
+            // From here a click on the search box may give the panel the keyboard: remember who has it.
+            RememberKeyboardOwner();
+            Interop.SetNoActivate(this, false);
+        }
         if (!paused) ReleaseKeyboard();
+        _wasPaused = paused;
 
         var attention = _viewModel.HasAttention;
         if (attention && !_hadAttention && _live) SystemSounds.Exclamation.Play();
@@ -288,34 +319,78 @@ public partial class OverlayWindow : Window
     // ------------------------------------------------------------------ keyboard for the search box
 
     /// <summary>
-    /// The panel never takes the keyboard by itself. Clicking the search box is the one way in: the
-    /// window that had it is remembered and gets it back when the pause ends.
+    /// Decides, click by click, whether the panel takes the keyboard. While the bot runs the window
+    /// cannot be activated at all. During a pause Windows asks before activating it on a click: the
+    /// answer is yes only over the search box, so the reorder buttons leave the keyboard where it is.
+    /// Letting Windows do the activation is what makes it reliable: a program that tries to take the
+    /// keyboard by itself is usually refused, and the typing would go on reaching the other window.
+    /// </summary>
+    private IntPtr WindowHook(IntPtr window, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        if (message != Interop.WmMouseActivate) return IntPtr.Zero;
+        handled = true;
+        if (!_control.IsPaused || !OverSearchBox(Interop.CursorPosition())) return Interop.MaNoActivate;
+
+        // This is the last moment the other window still has the keyboard: it gets it back later.
+        RememberKeyboardOwner();
+        return Interop.MaActivate;
+    }
+
+    private bool OverSearchBox(Point screen)
+    {
+        if (!SearchFrame.IsVisible) return false;
+        var point = SearchFrame.PointFromScreen(screen);
+        return point.X >= 0 && point.Y >= 0 && point.X <= SearchFrame.ActualWidth && point.Y <= SearchFrame.ActualHeight;
+    }
+
+    /// <summary>
+    /// Puts the typing cursor in the search box. Returns true only when the panel really is the window
+    /// Windows sends the keys to; otherwise the box is left without the cursor, so nobody types
+    /// believing the text goes there.
     /// </summary>
     public bool FocusSearch()
     {
         if (!_viewModel.ShowSearch) return false;
-        if (!IsActive)
+        RememberKeyboardOwner();
+        Interop.SetNoActivate(this, false);
+        if (!Interop.TakeForeground(this))
         {
-            var owner = Interop.ForegroundWindow();
-            if (!Interop.IsOurs(owner)) _focusOwner = owner;
-            Interop.SetNoActivate(this, false);
-            Activate();
+            Keyboard.ClearFocus();
+            _viewModel.Say("O Windows não deixou o painel receber o teclado. Clique de novo na caixa de busca.", ok: false);
+            return false;
         }
         SearchBox.Focus();
         Keyboard.Focus(SearchBox);
         return SearchBox.IsKeyboardFocused;
     }
 
+    /// <summary>The window that gets the keyboard back when the pause ends (zero when none is remembered).</summary>
+    public IntPtr KeyboardOwner => _focusOwner;
+
+    /// <summary>The middle of the search box, in screen pixels (for the self-test's real click).</summary>
+    public Point SearchBoxPoint() =>
+        SearchBox.PointToScreen(new Point(SearchBox.ActualWidth / 2, SearchBox.ActualHeight / 2));
+
+    /// <summary>
+    /// Keeps the window that has the keyboard now, unless it is one of ours or there is none (Windows
+    /// reports none for an instant while the keyboard is changing hands).
+    /// </summary>
+    private void RememberKeyboardOwner()
+    {
+        var owner = Interop.ForegroundWindow();
+        if (owner != IntPtr.Zero && !Interop.IsOurs(owner)) _focusOwner = owner;
+    }
+
     private void ReleaseKeyboard()
     {
         Interop.SetNoActivate(this, true);
-        if (IsActive && _focusOwner != IntPtr.Zero) Interop.BringToFront(_focusOwner);
+        if (Interop.IsForeground(this) && _focusOwner != IntPtr.Zero) Interop.GiveForeground(_focusOwner);
         _focusOwner = IntPtr.Zero;
     }
 
     private void OnSearchMouseDown(object sender, MouseButtonEventArgs e)
     {
-        if (SearchBox.IsKeyboardFocused) return;
+        if (SearchBox.IsKeyboardFocused && Interop.IsForeground(this)) return;
         FocusSearch();
         // A click on the frame around the box counts as a click in it.
         if (!ReferenceEquals(sender, SearchBox)) e.Handled = true;

@@ -25,6 +25,15 @@
 
     <FontFamily x:Key="Icons">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
 
+    <!-- A tooltip takes the font of the control it belongs to. On an icon button that is the icon
+         font, which has no letters: the text came out as empty boxes. -->
+    <Style TargetType="ToolTip">
+        <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontWeight" Value="Normal" />
+        <Setter Property="FontStyle" Value="Normal" />
+    </Style>
+
     <!-- Text -->
     <Style x:Key="PageTitle" TargetType="TextBlock">
         <Setter Property="FontSize" Value="24" />

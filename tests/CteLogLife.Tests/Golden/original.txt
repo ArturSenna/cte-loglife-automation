@@ -1,0 +1,29 @@
+move 52,28
+click
+move 1731,50
+click
+tap Down
+tap Enter
+move 1091,27
+click
+move 1790,28
+click
+move 1797,44
+click
+move 195,132
+click
+tap Up
+tap Enter
+move 174,124
+click
+char 1
+char 2
+char 3
+char 4
+char 5
+move 1464,270
+click
+move 307,99
+click
+move 406,101
+click

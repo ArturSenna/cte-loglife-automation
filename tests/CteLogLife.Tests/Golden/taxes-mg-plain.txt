@@ -1,0 +1,66 @@
+move 494,96
+click
+move 602,122
+click
+tap Tab
+char 8
+char 0
+char .
+char 0
+move 759,97
+click
+tap Tab
+char 0
+char 0
+tap Tab
+tap Tab
+char 1
+char 2
+char .
+char 0
+tap Tab
+tap Enter
+move 840,96
+click
+move 784,112
+click
+move 784,96
+click
+char 0
+char 0
+char 0
+tap Enter
+char 0
+tap Enter
+tap Tab
+tap Enter
+move 1162,98
+click
+move 1068,118
+click
+clipboard ICMS: texto da observação
+down Control
+char v
+up Control
+tap F4
+move 88,320
+click
+tap Tab
+tap Tab
+tap Enter
+tap Right
+tap Enter
+tap Right
+tap Right
+tap Right
+tap Enter
+tap Left
+tap Enter
+tap F10
+clipboard-clear
+move 1188,281
+click
+click
+down Control
+char c
+up Control
