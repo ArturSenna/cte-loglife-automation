@@ -1,0 +1,84 @@
+<Window x:Class="CteLogLife.App.ConferenceWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Conferência de tomador" Width="1060" Height="600" MinWidth="820" MinHeight="420"
+        WindowStartupLocation="CenterOwner" Background="{StaticResource Page}" ShowInTaskbar="False"
+        FontFamily="Segoe UI Variable Text, Segoe UI" UseLayoutRounding="True">
+    <Grid Margin="26,22,26,20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel>
+            <TextBlock Text="Conferência de tomador" Style="{StaticResource PageTitle}" FontSize="20" />
+            <TextBlock Style="{StaticResource PageHint}" Margin="0,4,0,16"
+                       Text="Confere, para cada CT-e da planilha do Bsoft, se o pagador do frete é o cliente cadastrado no sistema. Linhas com valor 5 (simbólicos) ficam de fora." />
+        </StackPanel>
+
+        <Border Grid.Row="1" Style="{StaticResource CardBorder}" Padding="18,14">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="300" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel>
+                    <TextBlock Text="Planilha (.xlsx ou .xls)" Style="{StaticResource FieldLabel}" />
+                    <TextBox x:Name="FileBox" Style="{StaticResource Field}" IsReadOnly="True" />
+                </StackPanel>
+                <Button x:Name="BrowseButton" Grid.Column="1" Style="{StaticResource QuietButton}" Content="Selecionar"
+                        VerticalAlignment="Bottom" Margin="8,0,18,0" Click="OnBrowse" />
+                <StackPanel Grid.Column="2">
+                    <TextBlock Text="Coluna com o CNPJ/CPF do pagador" Style="{StaticResource FieldLabel}" />
+                    <TextBox x:Name="ColumnBox" Style="{StaticResource Field}" />
+                </StackPanel>
+                <Button Grid.Column="3" Style="{StaticResource QuietButton}" Content="Salvar padrão"
+                        VerticalAlignment="Bottom" Margin="8,0,18,0" Click="OnSaveDefault" />
+                <Button x:Name="StartButton" Grid.Column="4" Style="{StaticResource ActionButton}"
+                        Content="Iniciar conferência" VerticalAlignment="Bottom" Click="OnStart" />
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="2" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10">
+            <Grid>
+                <TextBlock x:Name="EmptyText" Text="Selecione a planilha e inicie a conferência."
+                           Foreground="{StaticResource InkSoft}" FontSize="13.5" HorizontalAlignment="Center"
+                           VerticalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" Margin="30" />
+                <DataGrid x:Name="Grid" Visibility="Collapsed" AutoGenerateColumns="False" CanUserAddRows="False"
+                          CanUserDeleteRows="False" CanUserResizeRows="False" HeadersVisibility="Column"
+                          GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="{StaticResource Line}"
+                          BorderThickness="0" Background="Transparent" RowHeight="34" FontSize="13"
+                          SelectionUnit="CellOrRowHeader" ClipboardCopyMode="ExcludeHeader" Margin="6">
+                    <DataGrid.Columns>
+                        <DataGridCheckBoxColumn Binding="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}" Width="44" />
+                        <DataGridTextColumn Header="CT-e" Binding="{Binding Item.CteNumber}" IsReadOnly="True" Width="90" />
+                        <DataGridTextColumn Header="Linha" Binding="{Binding Item.RowNumber}" IsReadOnly="True" Width="64" />
+                        <DataGridTextColumn Header="Pagador" Binding="{Binding Item.PayerName}" IsReadOnly="True" Width="*" />
+                        <DataGridTextColumn Header="Planilha" Binding="{Binding Item.FileValue}" IsReadOnly="True" Width="170" />
+                        <DataGridTextColumn Header="Cadastro" Binding="{Binding Item.ApiValue}" IsReadOnly="True" Width="170" />
+                        <DataGridTextColumn Header="Motivo" Binding="{Binding Item.Reason}" IsReadOnly="True" Width="170" />
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Grid>
+        </Border>
+
+        <DockPanel Grid.Row="3" Margin="0,16,0,0">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                <Button x:Name="CancelCtesButton" Style="{StaticResource DangerButton}" Content="Cancelar CT-es selecionados"
+                        Margin="0,0,10,0" IsEnabled="False" Click="OnCancelSelected" />
+                <Button Style="{StaticResource QuietButton}" Content="Fechar" IsCancel="True" />
+            </StackPanel>
+            <StackPanel x:Name="SelectionButtons" Orientation="Horizontal" IsEnabled="False">
+                <Button Style="{StaticResource QuietButton}" Content="Selecionar todos" Margin="0,0,8,0" Click="OnSelectAll" />
+                <Button Style="{StaticResource QuietButton}" Content="Limpar seleção" Margin="0,0,8,0" Click="OnClearSelection" />
+                <Button Style="{StaticResource QuietButton}" Content="Copiar selecionados" Margin="0,0,14,0" Click="OnCopySelected" />
+                <TextBlock x:Name="StatusText" FontSize="12.5" Foreground="{StaticResource InkSoft}" VerticalAlignment="Center" />
+            </StackPanel>
+        </DockPanel>
+    </Grid>
+</Window>

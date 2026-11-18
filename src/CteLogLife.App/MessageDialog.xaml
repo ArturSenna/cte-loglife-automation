@@ -1,0 +1,46 @@
+<Window x:Class="CteLogLife.App.MessageDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="CTe LogLife" Width="520" SizeToContent="Height" ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False" Background="White"
+        FontFamily="Segoe UI Variable Text, Segoe UI" UseLayoutRounding="True">
+    <Grid Margin="26,24,26,22">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Orientation="Horizontal">
+            <Border x:Name="Badge" Width="36" Height="36" CornerRadius="18" Background="{StaticResource BrandSoft}">
+                <TextBlock x:Name="Glyph" Text="&#xE946;" FontFamily="{StaticResource Icons}" FontSize="17"
+                           Foreground="{StaticResource Brand}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+            <TextBlock x:Name="Heading" FontSize="17" FontWeight="SemiBold" Foreground="{StaticResource Ink}"
+                       VerticalAlignment="Center" Margin="12,0,0,0" TextWrapping="Wrap" MaxWidth="410" />
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="1" MaxHeight="380" VerticalScrollBarVisibility="Auto" Margin="0,16,0,0"
+                      Focusable="False">
+            <TextBox x:Name="Body" IsReadOnly="True" TextWrapping="Wrap" FontSize="13.5" BorderThickness="0"
+                     Background="Transparent" Foreground="{StaticResource Ink}" IsTabStop="False">
+                <TextBox.Template>
+                    <ControlTemplate TargetType="TextBox">
+                        <ScrollViewer x:Name="PART_ContentHost" />
+                    </ControlTemplate>
+                </TextBox.Template>
+            </TextBox>
+        </ScrollViewer>
+
+        <TextBox x:Name="Input" Grid.Row="2" Style="{StaticResource Field}" Margin="0,16,0,0" FontSize="16"
+                 Visibility="Collapsed" />
+
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,22,0,0">
+            <Button x:Name="Secondary" Style="{StaticResource QuietButton}" Content="Cancelar" IsCancel="True"
+                    Margin="0,0,10,0" Click="OnSecondary" />
+            <Button x:Name="Primary" Style="{StaticResource ActionButton}" Content="OK" IsDefault="True"
+                    Click="OnPrimary" />
+        </StackPanel>
+    </Grid>
+</Window>

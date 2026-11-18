@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>$(NetVersion)-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>CteLogLife.App</RootNamespace>
+    <AssemblyName>CTe LogLife</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>$(LegacyAppDir)my_icon.ico</ApplicationIcon>
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+    <SatelliteResourceLanguages>pt-BR</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CteLogLife.Core\CteLogLife.Core.csproj" />
+    <ProjectReference Include="..\CteLogLife.Bsoft\CteLogLife.Bsoft.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Tax tables and Bsoft screenshots ship next to the exe, where the operator can update them. -->
+    <Content Include="$(LegacyAppDir)Alíquota.xlsx" Link="Data\Alíquota.xlsx" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="$(LegacyAppDir)Complementares.xlsx" Link="Data\Complementares.xlsx" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="$(LegacyAppDir)resources\**\*" Link="Templates\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Resource Include="$(LegacyAppDir)my_icon.ico" Link="Assets\app.ico" />
+  </ItemGroup>
+
+  <!-- OpenCV's video codec library is never used here (only image matching): keep it out of the package. -->
+  <Target Name="DropOpenCvVideo" AfterTargets="ComputeResolvedFilesToPublishList">
+    <ItemGroup>
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="$([System.String]::Copy('%(Filename)').StartsWith('opencv_videoio_ffmpeg'))" />
+    </ItemGroup>
+  </Target>
+
+</Project>

@@ -1,0 +1,16 @@
+<Project>
+  <PropertyGroup>
+    <!-- One place to move the whole solution to a newer .NET (needs the matching SDK installed). -->
+    <NetVersion>net9.0</NetVersion>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Version>2.0.0</Version>
+    <Company>LogLife</Company>
+    <Product>CTe LogLife</Product>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <SatelliteResourceLanguages>pt-BR</SatelliteResourceLanguages>
+    <!-- The Python app's data and templates stay the single source of truth until it is retired. -->
+    <LegacyAppDir>$(MSBuildThisFileDirectory)botCTE\botCTE\</LegacyAppDir>
+  </PropertyGroup>
+</Project>

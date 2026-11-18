@@ -1,0 +1,263 @@
+<Window x:Class="CteLogLife.App.OverlayWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="CTe LogLife - execução" Width="348" SizeToContent="Height"
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent" ResizeMode="NoResize"
+        Topmost="True" ShowInTaskbar="False" ShowActivated="False" Focusable="False"
+        WindowStartupLocation="Manual" FontFamily="Segoe UI Variable Text, Segoe UI" UseLayoutRounding="True">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="Visible" />
+        <SolidColorBrush x:Key="Panel" Color="#F2101B29" />
+        <SolidColorBrush x:Key="PanelLine" Color="#2A3B52" />
+        <SolidColorBrush x:Key="Soft" Color="#A9B6C8" />
+        <SolidColorBrush x:Key="Faint" Color="#73839A" />
+        <SolidColorBrush x:Key="Alert" Color="#FF6B81" />
+        <SolidColorBrush x:Key="Good" Color="#3DDC97" />
+
+        <Style x:Key="Kbd" TargetType="Border">
+            <Setter Property="Background" Value="#22344B" />
+            <Setter Property="BorderBrush" Value="#3A506B" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="6,1,6,2" />
+            <Setter Property="Margin" Value="0,0,7,0" />
+        </Style>
+        <Style x:Key="KbdText" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontFamily" Value="Cascadia Mono, Consolas" />
+        </Style>
+
+        <Style x:Key="MoveButton" TargetType="Button">
+            <Setter Property="Width" Value="26" />
+            <Setter Property="Height" Value="24" />
+            <Setter Property="Margin" Value="3,0,0,0" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FontFamily" Value="{StaticResource Icons}" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Surface" Background="#22344B" CornerRadius="5">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Surface" Property="Background" Value="{StaticResource Brand}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Surface" Property="Opacity" Value="0.45" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- A text-sized button on the dark panel (add to queue, open the capture). -->
+        <Style x:Key="PanelButton" TargetType="Button" BasedOn="{StaticResource MoveButton}">
+            <Setter Property="Width" Value="NaN" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Surface" Background="#22344B" BorderBrush="#3A506B" BorderThickness="1"
+                                CornerRadius="6" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Surface" Property="Background" Value="{StaticResource Brand}" />
+                                <Setter TargetName="Surface" Property="BorderBrush" Value="{StaticResource Brand}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Surface" Property="Opacity" Value="0.45" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Border x:Name="Shell" Background="{StaticResource Panel}" BorderBrush="{StaticResource PanelLine}"
+            BorderThickness="1,1,0,1" CornerRadius="14,0,0,14" Padding="18,16,16,16">
+        <StackPanel>
+            <!-- status -->
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Right" Text="{Binding Counter}" Foreground="White" FontSize="13"
+                           FontWeight="SemiBold" VerticalAlignment="Center" />
+                <Border CornerRadius="9" Padding="8,2,10,3" HorizontalAlignment="Left" Background="{Binding StateSoft}">
+                    <StackPanel Orientation="Horizontal">
+                        <Ellipse Width="7" Height="7" Fill="{Binding StateBrush}" VerticalAlignment="Center" Margin="0,1,6,0" />
+                        <TextBlock Text="{Binding StateText}" Foreground="{Binding StateBrush}" FontSize="10.5"
+                                   FontWeight="Bold" />
+                    </StackPanel>
+                </Border>
+            </DockPanel>
+            <TextBlock Text="{Binding Title}" Foreground="White" FontSize="16" FontWeight="SemiBold" Margin="0,10,0,8"
+                       TextTrimming="CharacterEllipsis" />
+            <ProgressBar Value="{Binding Progress, Mode=OneWay}" Maximum="100" Height="4" Foreground="{StaticResource Brand}"
+                         Background="#22344B" BorderThickness="0" />
+
+            <!-- the bot is stuck at a screen it does not know -->
+            <Border Background="#33FF6B81" BorderBrush="{StaticResource Alert}" BorderThickness="1" CornerRadius="8"
+                    Padding="12,10,12,11" Margin="0,14,0,0"
+                    Visibility="{Binding HasAttention, Converter={StaticResource Visible}}">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xE7BA;" FontFamily="{StaticResource Icons}" FontSize="14"
+                                   Foreground="{StaticResource Alert}" VerticalAlignment="Center" Margin="0,0,7,0" />
+                        <TextBlock Text="{Binding AttentionTitle}" Foreground="White" FontSize="13.5" FontWeight="SemiBold" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding AttentionMessage}" Foreground="White" FontSize="12" TextWrapping="Wrap"
+                               Margin="0,7,0,0" LineHeight="17" />
+                    <Button Style="{StaticResource PanelButton}" HorizontalAlignment="Left" Margin="0,10,0,0"
+                            Content="Ver a captura da tela" Click="OnOpenScreenshot"
+                            Visibility="{Binding HasScreenshot, Converter={StaticResource Visible}}" />
+                </StackPanel>
+            </Border>
+
+            <!-- current -->
+            <StackPanel Margin="0,14,0,0" Visibility="{Binding HasCurrent, Converter={StaticResource Visible}}">
+                <TextBlock Text="AGORA" Foreground="{StaticResource Faint}" FontSize="10" FontWeight="Bold" />
+                <TextBlock Text="{Binding CurrentTitle}" Foreground="White" FontSize="14" FontWeight="SemiBold"
+                           Margin="0,4,0,0" TextTrimming="CharacterEllipsis" />
+                <TextBlock Text="{Binding CurrentSubtitle}" Foreground="{StaticResource Soft}" FontSize="11.5"
+                           Margin="0,2,0,0" TextTrimming="CharacterEllipsis" />
+                <TextBlock Text="{Binding Step}" Foreground="{StaticResource Brand}" FontSize="12" FontWeight="SemiBold"
+                           Margin="0,5,0,0" TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+
+            <!-- upcoming -->
+            <Border Height="1" Background="{StaticResource PanelLine}" Margin="0,14,0,12" />
+            <TextBlock Foreground="{StaticResource Faint}" FontSize="10" FontWeight="Bold">
+                <Run Text="PRÓXIMOS" /> <Run Text="{Binding UpcomingCount, Mode=OneWay}" />
+            </TextBlock>
+
+            <!-- search / include: only while paused -->
+            <Border Background="#16243A" BorderBrush="#3A506B" BorderThickness="1" CornerRadius="7" Height="32"
+                    Padding="9,0,4,0" Margin="0,8,0,2" Cursor="IBeam" MouseLeftButtonDown="OnSearchMouseDown"
+                    Visibility="{Binding ShowSearch, Converter={StaticResource Visible}}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="&#xE721;" FontFamily="{StaticResource Icons}" FontSize="12"
+                               Foreground="{StaticResource Faint}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <TextBlock Grid.Column="1" Text="{Binding SearchHint}" Foreground="{StaticResource Faint}" FontSize="12.5"
+                               VerticalAlignment="Center" IsHitTestVisible="False" TextTrimming="CharacterEllipsis"
+                               Visibility="{Binding SearchIsEmpty, Converter={StaticResource Visible}}" />
+                    <TextBox x:Name="SearchBox" Grid.Column="1" Foreground="White" CaretBrush="White" FontSize="12.5"
+                             MaxLength="60" VerticalAlignment="Center" Background="Transparent" BorderThickness="0"
+                             Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                             PreviewMouseLeftButtonDown="OnSearchMouseDown" PreviewKeyDown="OnSearchKeyDown">
+                        <TextBox.Template>
+                            <ControlTemplate TargetType="TextBox">
+                                <ScrollViewer x:Name="PART_ContentHost" Focusable="False" Background="Transparent"
+                                              HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Hidden" />
+                            </ControlTemplate>
+                        </TextBox.Template>
+                    </TextBox>
+                    <Button Grid.Column="2" Style="{StaticResource MoveButton}" Content="&#xE711;" Click="OnClearSearch"
+                            ToolTip="Limpar a busca"
+                            Visibility="{Binding SearchHasText, Converter={StaticResource Visible}}" />
+                </Grid>
+            </Border>
+
+            <TextBlock Text="{Binding EmptyText}" Foreground="{StaticResource Soft}" FontSize="12" Margin="0,6,0,0"
+                       TextWrapping="Wrap" Visibility="{Binding NoUpcoming, Converter={StaticResource Visible}}" />
+            <ScrollViewer x:Name="UpcomingScroll" MaxHeight="{Binding ListMaxHeight}" VerticalScrollBarVisibility="Auto"
+                          Margin="0,6,-6,0" Focusable="False">
+                <ItemsControl ItemsSource="{Binding Upcoming}" Margin="0,0,6,0">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="0,3">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="24" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="{Binding Position}" Foreground="{StaticResource Faint}" FontSize="11.5"
+                                           FontWeight="SemiBold" VerticalAlignment="Center" />
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock Text="{Binding Title}" Foreground="White" FontSize="12.5"
+                                               TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Text="{Binding Subtitle}" Foreground="{StaticResource Faint}" FontSize="11"
+                                               TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center"
+                                            Visibility="{Binding DataContext.IsPaused, RelativeSource={RelativeSource AncestorType=ItemsControl}, Converter={StaticResource Visible}}">
+                                    <Button Style="{StaticResource MoveButton}" Content="&#xE74A;" Tag="{Binding Id}"
+                                            Click="OnMoveTop" ToolTip="Emitir em seguida" />
+                                    <Button Style="{StaticResource MoveButton}" Content="&#xE70E;" Tag="{Binding Id}"
+                                            Click="OnMoveUp" ToolTip="Subir" />
+                                    <Button Style="{StaticResource MoveButton}" Content="&#xE70D;" Tag="{Binding Id}"
+                                            Click="OnMoveDown" ToolTip="Descer" />
+                                </StackPanel>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+
+            <Button Style="{StaticResource PanelButton}" HorizontalAlignment="Left" Margin="0,8,0,0" Click="OnInclude"
+                    IsEnabled="{Binding CanIncludeNow}"
+                    Visibility="{Binding OfferInclude, Converter={StaticResource Visible}}">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="&#xE710;" FontFamily="{StaticResource Icons}" FontSize="10" VerticalAlignment="Center"
+                               Margin="0,1,7,0" />
+                    <TextBlock Text="{Binding IncludeText}" />
+                </StackPanel>
+            </Button>
+            <TextBlock Text="{Binding IncludeStatus}" Foreground="{Binding IncludeStatusBrush}" FontSize="11.5"
+                       TextWrapping="Wrap" Margin="0,8,0,0"
+                       Visibility="{Binding HasIncludeStatus, Converter={StaticResource Visible}}" />
+
+            <!-- footer -->
+            <Border Height="1" Background="{StaticResource PanelLine}" Margin="0,12,0,12" />
+            <StackPanel Visibility="{Binding IsPaused, Converter={StaticResource Visible}}">
+                <TextBlock Text="{Binding PausedText}" Foreground="{StaticResource Soft}"
+                           FontSize="11.5" TextWrapping="Wrap" Margin="0,0,0,10" />
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
+                    <Button Style="{StaticResource ActionButton}" Height="32" Focusable="False" Click="OnResume"
+                            Margin="0,0,8,0">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE768;" Style="{StaticResource IconGlyph}" FontSize="12" />
+                            <TextBlock Text="Continuar" />
+                        </StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource DangerButton}" Height="32" MinWidth="80" Focusable="False"
+                            Click="OnStop" Content="Parar" />
+                </StackPanel>
+            </StackPanel>
+            <TextBlock Text="{Binding Hint}" Foreground="{StaticResource Soft}" FontSize="11.5" TextWrapping="Wrap"
+                       Margin="0,0,0,10" Visibility="{Binding HasHint, Converter={StaticResource Visible}}" />
+            <StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                    <Border Style="{StaticResource Kbd}"><TextBlock Text="Pause" Style="{StaticResource KbdText}" /></Border>
+                    <TextBlock Text="ou" Foreground="{StaticResource Faint}" FontSize="11" VerticalAlignment="Center"
+                               Margin="0,0,7,0" />
+                    <Border Style="{StaticResource Kbd}"><TextBlock Text="Ctrl+Alt+P" Style="{StaticResource KbdText}" /></Border>
+                    <TextBlock Text="pausar / continuar" Foreground="{StaticResource Soft}" FontSize="11.5"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal">
+                    <Border Style="{StaticResource Kbd}"><TextBlock Text="Ctrl+Alt+Q" Style="{StaticResource KbdText}" /></Border>
+                    <TextBlock Text="parar a execução" Foreground="{StaticResource Soft}" FontSize="11.5"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</Window>

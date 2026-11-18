@@ -1,0 +1,238 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Brand and surfaces -->
+    <Color x:Key="BrandColor">#00A5E7</Color>
+    <SolidColorBrush x:Key="Brand" Color="{StaticResource BrandColor}" />
+    <SolidColorBrush x:Key="BrandHover" Color="#0091CC" />
+    <SolidColorBrush x:Key="BrandPressed" Color="#007DB0" />
+    <SolidColorBrush x:Key="BrandSoft" Color="#E5F6FD" />
+    <SolidColorBrush x:Key="Danger" Color="#C42B45" />
+    <SolidColorBrush x:Key="DangerHover" Color="#AD2139" />
+    <SolidColorBrush x:Key="DangerSoft" Color="#FCE9EC" />
+    <SolidColorBrush x:Key="Warning" Color="#B7791F" />
+    <SolidColorBrush x:Key="WarningSoft" Color="#FFF4DB" />
+    <SolidColorBrush x:Key="Success" Color="#1E8E5A" />
+    <SolidColorBrush x:Key="Page" Color="#F3F5F8" />
+    <SolidColorBrush x:Key="Card" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="Line" Color="#E3E7ED" />
+    <SolidColorBrush x:Key="Ink" Color="#17202B" />
+    <SolidColorBrush x:Key="InkSoft" Color="#5B6675" />
+    <SolidColorBrush x:Key="InkFaint" Color="#8A94A3" />
+    <SolidColorBrush x:Key="Rail" Color="#101C2B" />
+    <SolidColorBrush x:Key="RailHover" Color="#1B2B40" />
+    <SolidColorBrush x:Key="RailText" Color="#B9C4D3" />
+
+    <FontFamily x:Key="Icons">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
+
+    <!-- Text -->
+    <Style x:Key="PageTitle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="24" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource Ink}" />
+    </Style>
+    <Style x:Key="PageHint" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Foreground" Value="{StaticResource InkSoft}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Setter Property="Margin" Value="0,4,0,0" />
+    </Style>
+    <Style x:Key="CardTitle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="15" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource Ink}" />
+    </Style>
+    <Style x:Key="CardHint" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="12.5" />
+        <Setter Property="Foreground" Value="{StaticResource InkSoft}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Setter Property="Margin" Value="0,3,0,14" />
+    </Style>
+    <Style x:Key="FieldLabel" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource InkSoft}" />
+        <Setter Property="Margin" Value="0,0,0,5" />
+    </Style>
+
+    <!-- Card -->
+    <Style x:Key="CardBorder" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource Card}" />
+        <Setter Property="BorderBrush" Value="{StaticResource Line}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="10" />
+        <Setter Property="Padding" Value="22,18,22,20" />
+        <Setter Property="Margin" Value="0,0,0,14" />
+    </Style>
+
+    <!-- Buttons -->
+    <Style x:Key="ActionButton" TargetType="Button">
+        <Setter Property="Foreground" Value="White" />
+        <Setter Property="Background" Value="{StaticResource Brand}" />
+        <Setter Property="Tag" Value="{StaticResource BrandHover}" />
+        <Setter Property="FontSize" Value="13.5" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Padding" Value="18,0" />
+        <Setter Property="Height" Value="36" />
+        <Setter Property="MinWidth" Value="96" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Surface" Background="{TemplateBinding Background}" CornerRadius="6"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                          RecognizesAccessKey="True" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Surface" Property="Background"
+                                    Value="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Surface" Property="Opacity" Value="0.85" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Surface" Property="BorderBrush" Value="{StaticResource Ink}" />
+                            <Setter TargetName="Surface" Property="BorderThickness" Value="2" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Surface" Property="Background" Value="#C9D0D9" />
+                            <Setter Property="Cursor" Value="Arrow" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="DangerButton" TargetType="Button" BasedOn="{StaticResource ActionButton}">
+        <Setter Property="Background" Value="{StaticResource Danger}" />
+        <Setter Property="Tag" Value="{StaticResource DangerHover}" />
+    </Style>
+
+    <Style x:Key="QuietButton" TargetType="Button">
+        <Setter Property="Foreground" Value="{StaticResource Ink}" />
+        <Setter Property="Background" Value="White" />
+        <Setter Property="FontSize" Value="13.5" />
+        <Setter Property="Padding" Value="16,0" />
+        <Setter Property="Height" Value="36" />
+        <Setter Property="MinWidth" Value="88" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Surface" Background="{TemplateBinding Background}" CornerRadius="6"
+                            BorderBrush="#CBD2DB" BorderThickness="1" Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                          RecognizesAccessKey="True" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Surface" Property="Background" Value="#F1F4F8" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Surface" Property="Background" Value="#E4E9EF" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Surface" Property="BorderBrush" Value="{StaticResource Brand}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Foreground" Value="{StaticResource InkFaint}" />
+                            <Setter TargetName="Surface" Property="Background" Value="#F4F6F8" />
+                            <Setter Property="Cursor" Value="Arrow" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Navigation rail items -->
+    <Style x:Key="RailItem" TargetType="RadioButton">
+        <Setter Property="Foreground" Value="{StaticResource RailText}" />
+        <Setter Property="FontSize" Value="13.5" />
+        <Setter Property="Height" Value="40" />
+        <Setter Property="Margin" Value="10,2" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RadioButton">
+                    <Border x:Name="Surface" Background="Transparent" CornerRadius="7">
+                        <Grid>
+                            <Border x:Name="Marker" Width="3" Height="18" CornerRadius="2" HorizontalAlignment="Left"
+                                    Background="{StaticResource Brand}" Visibility="Collapsed" />
+                            <StackPanel Orientation="Horizontal" Margin="14,0,10,0" VerticalAlignment="Center">
+                                <TextBlock Text="{TemplateBinding Tag}" FontFamily="{StaticResource Icons}"
+                                           FontSize="16" Width="28" VerticalAlignment="Center" />
+                                <ContentPresenter VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Surface" Property="Background" Value="{StaticResource RailHover}" />
+                            <Setter Property="Foreground" Value="White" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Surface" Property="Background" Value="{StaticResource RailHover}" />
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Surface" Property="Background" Value="{StaticResource RailHover}" />
+                            <Setter TargetName="Marker" Property="Visibility" Value="Visible" />
+                            <Setter Property="Foreground" Value="White" />
+                            <Setter Property="FontWeight" Value="SemiBold" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Inputs: plain, predictable boxes -->
+    <Style x:Key="Field" TargetType="TextBox">
+        <Setter Property="Height" Value="36" />
+        <Setter Property="FontSize" Value="13.5" />
+        <Setter Property="Padding" Value="9,0" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Foreground" Value="{StaticResource Ink}" />
+        <Setter Property="Background" Value="White" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TextBox">
+                    <Border x:Name="Surface" Background="{TemplateBinding Background}" CornerRadius="6"
+                            BorderBrush="#CBD2DB" BorderThickness="1">
+                        <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}"
+                                      VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Surface" Property="BorderBrush" Value="#9AA5B4" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Surface" Property="BorderBrush" Value="{StaticResource Brand}" />
+                            <Setter TargetName="Surface" Property="BorderThickness" Value="2" />
+                        </Trigger>
+                        <Trigger Property="IsReadOnly" Value="True">
+                            <Setter TargetName="Surface" Property="Background" Value="#F6F8FA" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Surface" Property="Background" Value="#F1F3F6" />
+                            <Setter Property="Foreground" Value="{StaticResource InkFaint}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="IconGlyph" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource Icons}" />
+        <Setter Property="FontSize" Value="15" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Margin" Value="0,0,8,0" />
+    </Style>
+
+</ResourceDictionary>

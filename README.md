@@ -5,6 +5,70 @@ Automação do processo de emissão de CTe (Conhecimento de Transporte Eletrôni
 [![Python Version](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
+## Versão 2 em C# (em validação)
+
+A reescrita em C#/.NET fica em `src/` e `tests/`. A versão em Python (`botCTE/`) continua no repositório,
+intacta, até a versão nova ser validada com o Bsoft em produção.
+
+```powershell
+dotnet test CteLogLife.sln            # testes (não tocam no Bsoft nem na API)
+dotnet run --project src\CteLogLife.App
+.\build_dotnet.ps1                    # testes + pasta pronta em publish\CTe LogLife
+.\build_installer_dotnet.ps1          # testes + instalador para o GitHub Releases (Inno Setup 6)
+```
+
+**Instalador e release.** `build_installer_dotnet.ps1` gera `installer_output\CTe_LogLife_Setup_v<versão>.exe`,
+com a versão lida de `<Version>` em `Directory.Build.props`. Para publicar: suba a versão nesse arquivo,
+rode o script, crie no GitHub um release com a tag `v<versão>` e anexe o instalador (o script mostra o
+link no final). As cópias instaladas consultam o release mais recente, comparam a tag com a própria versão
+e baixam o `.exe` que tem "setup" no nome. Um release marcado como **pre-release** não é oferecido a elas:
+serve para testar o instalador em uma máquina antes de liberar para todas.
+
+O instalador substitui a versão em Python no mesmo lugar (`Program Files (x86)\CTe LogLife`): apaga a
+pasta `_internal`, mantém os `.txt` de pastas e o login que ela guardava em `_internal\.env`, e o programa
+novo importa tudo na primeira abertura. Antes de gerar o instalador, o script instala uma cópia de teste
+em uma pasta temporária preparada como uma instalação antiga e confere o resultado arquivo por arquivo;
+ela tem identificação própria, não cria atalhos nem entradas no registro e não pede administrador. O
+script publica em uma pasta separada (`obj\installer`), então pode rodar com o programa aberto.
+
+| Projeto | Conteúdo |
+|---|---|
+| `CteLogLife.Core` | API do sistema LogLife, tabelas de ICMS, diário de emissões, fila com pausa, e os fluxos (unificado, avulso, simbólico, complementar, por UF, cancelamentos, GNRE, conferência de tomador) |
+| `CteLogLife.Bsoft` | Captura de tela, busca por imagem, teclado/mouse, área de transferência e a sequência de telas do Bsoft |
+| `CteLogLife.App` | Interface WPF e o painel de execução na borda da tela |
+
+O que muda para quem opera:
+
+- **Emissão unificada** é o botão principal; a antiga "lista de CTe" foi removida.
+- Durante a execução aparece um **painel na borda da tela** com o CT-e atual e os próximos.
+  `Pause` (ou `Ctrl+Alt+P`) pausa e continua; `Ctrl+Alt+Q` para.
+- **Pausado**, o painel permite reordenar a fila, **buscar** um item (por protocolo, cliente ou cidade;
+  `Enter` manda o primeiro resultado para a frente) e **incluir um protocolo** que não estava na lista: ele é
+  buscado de novo no sistema e entra como o próximo. A inclusão existe nas emissões unificada, simbólica,
+  avulsa e complementar; nas filas de cancelamento e de guias há só busca e reordenação.
+- **Tela desconhecida**: quando um elemento esperado não aparece no Bsoft, o robô captura a tela, para e
+  espera. Você resolve a tela no Bsoft e clica em Continuar. O que foi feito (cliques e as teclas Enter,
+  Esc, Tab, Espaço, setas e Alt+letra) fica gravado junto com a imagem da tela, e da próxima vez que ela
+  aparecer o robô repete sozinho. Texto digitado nunca é gravado: nesse caso, ou quando a tela não pode ser
+  reconhecida com segurança, o ocorrido fica só no registro de atividade, com a captura. As telas aprendidas
+  ficam em `%LOCALAPPDATA%\CTe LogLife\telas-aprendidas` e podem ser apagadas em Configurações.
+- Cada emissão é gravada em um diário. Se o registro no sistema falhar depois de o CT-e ser autorizado,
+  ela fica em **Pendências** para ser reenviada, e o protocolo não é emitido de novo enquanto isso.
+- Pastas, relatórios e o login do sistema ficam em `%LOCALAPPDATA%\CTe LogLife` (o login criptografado
+  pela conta do Windows). Na primeira abertura eles são importados dos arquivos `.txt` e do `.env` antigos.
+  O x-token das rotas públicas é um só para todos e já vem no programa (`LogLifeApi.PublicToken`).
+
+As imagens do Bsoft (`botCTE/botCTE/resources`) e as planilhas `Alíquota.xlsx` e `Complementares.xlsx`
+continuam sendo as mesmas: as duas versões leem dali. O build está em .NET 9; para mudar de versão, altere
+`NetVersion` em `Directory.Build.props`.
+
+`"CTe LogLife.exe" --selftest relatorio.txt` confere, na máquina onde o robô roda, se o painel fica fora
+das capturas de tela, se os atalhos estão livres, se a caixa de busca recebe o teclado e se o ciclo de tela
+desconhecida (parar, aprender com um clique, repetir sozinho) funciona. Ele usa duas janelinhas do próprio
+programa no lugar do Bsoft, move o ponteiro e dá dois cliques nelas; leva uns dez segundos.
+
+---
+
 ## 📋 Índice
 
 - [Sobre](#sobre)

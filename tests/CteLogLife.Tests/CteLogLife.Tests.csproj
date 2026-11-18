@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>$(NetVersion)-windows</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\CteLogLife.Core\CteLogLife.Core.csproj" />
+    <ProjectReference Include="..\..\src\CteLogLife.Bsoft\CteLogLife.Bsoft.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The real tax tables and Bsoft screenshots, so the tests cover what production loads. -->
+    <Content Include="$(LegacyAppDir)Alíquota.xlsx" Link="Data\Alíquota.xlsx" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="$(LegacyAppDir)Complementares.xlsx" Link="Data\Complementares.xlsx" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="$(LegacyAppDir)resources\**\*" Link="Templates\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+</Project>
