@@ -10,6 +10,8 @@ clipboard 11111111000111
 down Control
 char v
 up Control
+move 1486,359
+click
 move 444,32
 click
 move 577,56
@@ -21,5 +23,7 @@ clipboard 33333333000133
 down Control
 char v
 up Control
+move 1486,359
+click
 move 444,32
 click

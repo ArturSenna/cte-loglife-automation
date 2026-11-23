@@ -39,7 +39,7 @@ public sealed class FakeRecoveryInput : IRecoveryInput
 
 public class UnknownScreenTests : IDisposable
 {
-    private const string Control = "confirmCNPJ";
+    private const string Control = "busca_cliente_confirmar";
     private const int ControlX = 300, ControlY = 200;
 
     private readonly string _root = Path.Combine(Path.GetTempPath(), "cte-unknown-" + Guid.NewGuid().ToString("N"));
@@ -283,11 +283,11 @@ public class UnknownScreenTests : IDisposable
     public async Task Stopping_after_the_point_of_no_return_reports_the_missing_control()
     {
         _control.BeginCritical();
-        var require = Task.Run(() => _bot.Require("fifthPopUp", waitMs: 150));
+        var require = Task.Run(() => _bot.Require("transmissao_impressao_vias", waitMs: 150));
         await WaitUntil(() => _control.Attention is not null); // the wait holds although a pause would not
         _control.RequestStop();
         var error = await Assert.ThrowsAsync<ElementNotFoundException>(() => require);
-        Assert.Equal("fifthPopUp", error.Label);
+        Assert.Equal("transmissao_impressao_vias", error.Label);
     }
 
     [Fact]

@@ -176,16 +176,33 @@ public static class DriverScreen
     /// <summary>The labels the driver uses (the same list the template test checks).</summary>
     public static readonly string[] Labels =
     [
-        "iniciarEmissao", "searchSender", "CNPJ_input", "Found1", "confirmCNPJ", "searchReceiver", "Tomador1",
-        "Others", "searchPayer", "Part3", "IncludeNat", "NF-e", "Nat", "Weight1", "confirmNAT", "emissionComp",
-        "includeCTe", "searchCTe", "clearDate", "inputCTE", "findCTe", "selectAll", "confirmCTE", "part4",
-        "valueShipping22", "icms", "CST", "ibs-cbs", "ibs-cst", "Obs2", "Obs3", "payerObs", "include_tp_info",
-        "confirm_tp_info", "zeroValue", "confirmValue", "finalizeEmission", "creditconfirmPopUp", "secondPopUp",
-        "thirdPopUp", "fourthPopUp", "contingencia", "fifthPopUp", "clicarCte", "2consultas",
-        "10ClicarBordaInferior", "4Localizar", "5duploClickStatus", "5.1ct-e", "5.2Cancelar_CTE", "8confirmar",
-        "9-sucesso", "cancelled", "icms_start", "icms_document", "icms_emission_date", "icms_payment_date",
-        "icms_state", "icms_cost_center", "icms_payment", "icms_bank", "icms_barcode", "icms_obs", "icms_confirm",
+        "emissao_incluir_f1", "remetente_codigo", "busca_cliente_campo_cnpj", "busca_cliente_qtde_1",
+        "busca_cliente_confirmar", "destinatario_codigo", "tomador_resp_pagamento", "tomador_opcao_outros",
+        "tomador_codigo", "carga_aba_parte3", "carga_incluir", "carga_modelo_nfe", "carga_campo_natureza",
+        "carga_campo_peso", "carga_confirmar", "complementar_finalidade_emissao", "complementar_incluir_cte",
+        "complementar_abrir_busca", "complementar_busca_periodo", "complementar_busca_numero",
+        "complementar_busca_localizar", "complementar_busca_marcar_todos", "complementar_busca_confirmar",
+        "valores_aba_parte4", "valores_frete_valor", "valores_aba_icms", "valores_icms_cst", "valores_aba_ibs_cbs",
+        "valores_ibs_cbs_cst", "valores_aba_observacoes", "valores_campo_observacao", "valores_obs_contribuinte",
+        "valores_obs_contribuinte_incluir", "valores_obs_contribuinte_confirmar", "transmissao_aviso_icms_zero",
+        "transmissao_aviso_valores_alterados", "transmissao_numero_documento", "transmissao_aviso_valor_credito",
+        "transmissao_pergunta_incluir_cte", "transmissao_botao_mdfe", "transmissao_pergunta_gerar_cte",
+        "transmissao_aviso_contingencia", "transmissao_impressao_vias", "transmissao_numero_cte",
+        "cancelamento_aba_consultas", "cancelamento_campo_numero_cte", "cancelamento_localizar",
+        "cancelamento_status_autorizado", "cancelamento_menu_cte", "cancelamento_opcao_cancelar",
+        "cancelamento_confirmar", "cancelamento_sucesso", "cancelamento_ja_cancelado", "guia_icms_incluir_f1",
+        "guia_icms_documento", "guia_icms_data_emissao", "guia_icms_data_movimento", "guia_icms_codigo_fornecedor",
+        "guia_icms_centro_custo", "guia_icms_pre_cadastrada", "guia_icms_local_cobranca", "guia_icms_codigo_barras",
+        "guia_icms_observacao", "guia_icms_confirmar", SearchResultRow,
     ];
+
+    /// <summary>
+    /// The first row of a company search's result. In Bsoft it only exists while a search lists
+    /// something, so <see cref="Build"/> leaves it off unless asked for: it has its place, last in the
+    /// layout, and the other screens stay exactly as they were recorded. (Those hold two identical
+    /// "Nº CT-e" labels, and one more tile can change by rounding which of the two matches best.)
+    /// </summary>
+    public const string SearchResultRow = "busca_cliente_primeira_linha";
 
     /// <summary>Where each label goes: rows of tiles, in the order of <see cref="Labels"/>.</summary>
     public static Dictionary<string, Rect> Layout(TemplateStore templates, out int height)
@@ -209,13 +226,18 @@ public static class DriverScreen
         return places;
     }
 
-    /// <summary>A screen with every label on it except the ones named.</summary>
-    public static FakeScreen Build(TemplateStore templates, params string[] without)
+    /// <summary>A screen with every label on it except the ones named (and <see cref="SearchResultRow"/>).</summary>
+    public static FakeScreen Build(TemplateStore templates, params string[] without) =>
+        Build(templates, searchResult: false, without);
+
+    /// <param name="searchResult">Whether <see cref="SearchResultRow"/> is on the screen too.</param>
+    public static FakeScreen Build(TemplateStore templates, bool searchResult, params string[] without)
     {
         var places = Layout(templates, out var height);
         var screen = new FakeScreen(Width, height);
         foreach (var (label, place) in places)
-            if (!without.Contains(label)) screen.Show(templates.Image(label)!, place.X, place.Y);
+            if (!without.Contains(label) && (searchResult || label != SearchResultRow))
+                screen.Show(templates.Image(label)!, place.X, place.Y);
         return screen;
     }
 }

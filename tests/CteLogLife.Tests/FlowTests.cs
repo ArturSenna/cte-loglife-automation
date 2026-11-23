@@ -105,13 +105,13 @@ public class UnifiedEmissionTests
         rig.ServeUnified();
         rig.Driver.BeforeTransmit = tax =>
         {
-            if (tax.Price == "200") throw new ElementNotFoundException("valueShipping22");
+            if (tax.Price == "200") throw new ElementNotFoundException("valores_frete_valor");
         };
 
         var error = await Assert.ThrowsAsync<FlowException>(() =>
             new EmissionFlows(rig.Ctx).UnifiedAsync(Start, End, CancellationToken.None));
 
-        Assert.Contains("valueShipping22", error.Message);
+        Assert.Contains("valores_frete_valor", error.Message);
         Assert.Contains("Emitidos antes do erro: 1 de 2", error.Message);
         Assert.Single(rig.Http.To("/api/uploads/cte-loglife/json"));
         Assert.Empty(rig.Journal.Open()); // nothing was transmitted for 102, so it can be emitted again
@@ -174,13 +174,13 @@ public class UnifiedEmissionTests
     {
         using var rig = new TestRig();
         rig.ServeUnified();
-        rig.Driver.AfterTransmit = _ => throw new TransmitUncertainException("O elemento 'fifthPopUp' não apareceu depois do F4.");
+        rig.Driver.AfterTransmit = _ => throw new TransmitUncertainException("O elemento 'transmissao_impressao_vias' não apareceu depois do F4.");
 
         var error = await Assert.ThrowsAsync<FlowException>(() =>
             new EmissionFlows(rig.Ctx).UnifiedAsync(Start, End, CancellationToken.None));
 
         Assert.Contains("ficou sem confirmação", error.Message);
-        Assert.Contains("fifthPopUp", Assert.Single(rig.Operator.Questions).Message);
+        Assert.Contains("transmissao_impressao_vias", Assert.Single(rig.Operator.Questions).Message);
         Assert.Equal(EmissionStage.Uncertain, Assert.Single(rig.Journal.Open()).Stage);
         Assert.False(rig.Control.InCritical);
     }
@@ -419,7 +419,7 @@ public class OtherFlowTests
             : null;
         rig.Driver.OnCancel = number =>
         {
-            if (number == "20") throw new ElementNotFoundException("8confirmar");
+            if (number == "20") throw new ElementNotFoundException("cancelamento_confirmar");
         };
 
         var message = await new MaintenanceFlows(rig.Ctx).CancelBatchAsync(new DateOnly(2026, 11, 1),

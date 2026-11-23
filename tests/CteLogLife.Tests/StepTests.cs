@@ -11,7 +11,7 @@ namespace CteLogLife.Tests;
 /// </summary>
 public class StepTests : IDisposable
 {
-    private const string FieldA = "Nat", FieldB = "Weight1";
+    private const string FieldA = "carga_campo_natureza", FieldB = "carga_campo_peso";
 
     private readonly TemplateStore _templates = new(Path.Combine(AppContext.BaseDirectory, "Templates"));
     private readonly FakeScreen _screen = new(1400, 900); // smaller than a real screen: the searches run faster
@@ -359,41 +359,41 @@ public class StepTests : IDisposable
     [Fact]
     public void An_optional_popup_that_shows_up_is_found()
     {
-        _desktop.After(400, () => _screen.Show(_templates.Image("contingencia")!, 500, 450));
-        Assert.True(_bot.FindBefore("contingencia", "fifthPopUp", 5000, 65000));
+        _desktop.After(400, () => _screen.Show(_templates.Image("transmissao_aviso_contingencia")!, 500, 450));
+        Assert.True(_bot.FindBefore("transmissao_aviso_contingencia", "transmissao_impressao_vias", 5000, 65000));
         Assert.Equal((500, 450), (_bot.Last.Left, _bot.Last.Top));
     }
 
     [Fact]
     public void When_the_next_screen_is_there_instead_the_bot_does_not_wait_for_the_popup()
     {
-        _desktop.After(400, () => _screen.Show(_templates.Image("fifthPopUp")!, 500, 50));
-        var took = Timed(() => Assert.False(_bot.FindBefore("contingencia", "fifthPopUp", 5000, 65000)));
+        _desktop.After(400, () => _screen.Show(_templates.Image("transmissao_impressao_vias")!, 500, 50));
+        var took = Timed(() => Assert.False(_bot.FindBefore("transmissao_aviso_contingencia", "transmissao_impressao_vias", 5000, 65000)));
         Assert.InRange(took, 400 + 700, 400 + 700 + 150); // the grace time, not the 5 seconds of before
     }
 
     [Fact]
     public void A_popup_that_comes_a_moment_after_the_next_screen_is_still_caught()
     {
-        _desktop.After(400, () => _screen.Show(_templates.Image("fifthPopUp")!, 500, 50));
-        _desktop.After(900, () => _screen.Show(_templates.Image("contingencia")!, 500, 450));
-        Assert.True(_bot.FindBefore("contingencia", "fifthPopUp", 5000, 65000));
+        _desktop.After(400, () => _screen.Show(_templates.Image("transmissao_impressao_vias")!, 500, 50));
+        _desktop.After(900, () => _screen.Show(_templates.Image("transmissao_aviso_contingencia")!, 500, 450));
+        Assert.True(_bot.FindBefore("transmissao_aviso_contingencia", "transmissao_impressao_vias", 5000, 65000));
     }
 
     [Fact]
     public void A_popup_that_takes_longer_than_its_old_wait_is_caught_too()
     {
-        // Before, "contingencia" was only looked for during 5 s; later than that the run got stuck.
-        _desktop.After(8000, () => _screen.Show(_templates.Image("contingencia")!, 500, 450));
-        Assert.True(_bot.FindBefore("contingencia", "fifthPopUp", 5000, 65000));
+        // Before, "transmissao_aviso_contingencia" was only looked for during 5 s; later than that the run got stuck.
+        _desktop.After(8000, () => _screen.Show(_templates.Image("transmissao_aviso_contingencia")!, 500, 450));
+        Assert.True(_bot.FindBefore("transmissao_aviso_contingencia", "transmissao_impressao_vias", 5000, 65000));
     }
 
     [Fact]
     public void With_the_setting_off_the_popup_gets_its_old_plain_wait()
     {
         using var bot = NewBot(adaptive: false);
-        _screen.Show(_templates.Image("fifthPopUp")!, 500, 50);
-        var took = Timed(() => Assert.False(bot.FindBefore("contingencia", "fifthPopUp", 5000, 65000)));
+        _screen.Show(_templates.Image("transmissao_impressao_vias")!, 500, 50);
+        var took = Timed(() => Assert.False(bot.FindBefore("transmissao_aviso_contingencia", "transmissao_impressao_vias", 5000, 65000)));
         Assert.InRange(took, 5000, 5100);
     }
 

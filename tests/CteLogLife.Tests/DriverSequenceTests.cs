@@ -21,11 +21,21 @@ public class DriverSequenceTests : IDisposable
     private static string GoldenFolder([CallerFilePath] string here = "") =>
         Path.Combine(Path.GetDirectoryName(here)!, "Golden");
 
-    private void Check(string name, Action<BsoftDriver> work, bool adaptive = true, params string[] without)
+    private void Check(string name, Action<BsoftDriver> work, bool adaptive = true, params string[] without) =>
+        Run(name, work, adaptive, searchResult: false, without);
+
+    /// <summary>
+    /// <see cref="Check"/> for the work that searches companies: each search lists one result, so the
+    /// first row of the result is on screen too (<see cref="DriverScreen.SearchResultRow"/>).
+    /// </summary>
+    private void CheckParties(string name, PartiesInput parties, bool adaptive = true, params string[] without) =>
+        Run(name, d => d.FillParties(parties), adaptive, searchResult: true, without);
+
+    private void Run(string name, Action<BsoftDriver> work, bool adaptive, bool searchResult, string[] without)
     {
         var desktop = new FakeDesktop();
         using var driver = new BsoftDriver(
-            new DesktopBot(_templates, DriverScreen.Build(_templates, without), _control, _log, desktop: desktop)
+            new DesktopBot(_templates, DriverScreen.Build(_templates, searchResult, without), _control, _log, desktop: desktop)
             {
                 Adaptive = adaptive,
             }, _log);
@@ -64,15 +74,15 @@ public class DriverSequenceTests : IDisposable
     // ------------------------------------------------------------------ every element on screen
 
     [Fact]
-    public void Parties_with_the_sender_paying() => Check("parties-sender", d => d.FillParties(Sender));
+    public void Parties_with_the_sender_paying() => CheckParties("parties-sender", Sender);
 
     [Fact]
     public void Parties_with_the_receiver_paying() =>
-        Check("parties-receiver", d => d.FillParties(Sender with { Payer = Payer.Receiver }));
+        CheckParties("parties-receiver", Sender with { Payer = Payer.Receiver });
 
     [Fact]
     public void Parties_with_someone_else_paying() =>
-        Check("parties-other", d => d.FillParties(Sender with { Payer = Payer.Other, PayerCnpj = "44444444000144" }));
+        CheckParties("parties-other", Sender with { Payer = Payer.Other, PayerCnpj = "44444444000144" });
 
     [Fact]
     public void Cargo() => Check("cargo", d => d.FillCargo(new CargoInput("3")));
@@ -110,44 +120,43 @@ public class DriverSequenceTests : IDisposable
 
     [Fact]
     public void Parties_when_the_emission_is_already_started() =>
-        Check("parties-sender-started", d => d.FillParties(Sender), true, "iniciarEmissao");
+        CheckParties("parties-sender-started", Sender, true, "emissao_incluir_f1");
 
     [Fact]
     public void Cargo_when_the_document_type_needs_no_change() =>
-        Check("cargo-no-nfe", d => d.FillCargo(new CargoInput("3")), true, "NF-e");
+        Check("cargo-no-nfe", d => d.FillCargo(new CargoInput("3")), true, "carga_modelo_nfe");
 
     [Fact]
     public void Taxes_without_any_optional_screen() =>
         Check("taxes-mg-plain", d => Assert.Equal(4321, d.FillTaxesAndTransmit(Mg, Critical)), true,
-            "icms", "Obs2", "creditconfirmPopUp", "contingencia");
+            "valores_aba_icms", "valores_aba_observacoes", "transmissao_aviso_valor_credito", "transmissao_aviso_contingencia");
 
     [Fact]
     public void Complementary_without_the_value_confirmation() =>
         Check("taxes-complementary-plain", d => Assert.Equal(4321, d.FillTaxesAndTransmit(Complementary, Critical)),
-            true, "confirmValue", "creditconfirmPopUp", "contingencia");
+            true, "transmissao_aviso_valores_alterados", "transmissao_aviso_valor_credito", "transmissao_aviso_contingencia");
 
     [Fact]
     public void Cancellation_without_the_cte_menu() =>
-        Check("cancel-no-menu", d => Assert.True(d.CancelCte("98765", Critical)), true, "5.1ct-e");
+        Check("cancel-no-menu", d => Assert.True(d.CancelCte("98765", Critical)), true, "cancelamento_menu_cte");
 
     [Fact]
     public void Cancellation_when_bsoft_is_already_on_the_consultas_tab() =>
-        Check("cancel-tab-open", d => Assert.True(d.CancelCte("98765", Critical)), true, "2consultas");
+        Check("cancel-tab-open", d => Assert.True(d.CancelCte("98765", Critical)), true, "cancelamento_aba_consultas");
 
     [Fact]
     public void A_cte_that_is_already_cancelled_is_only_looked_up() =>
-        Check("cancel-already", d => Assert.False(d.CancelCte("98765", Critical)), true, "5duploClickStatus");
+        Check("cancel-already", d => Assert.False(d.CancelCte("98765", Critical)), true, "cancelamento_status_autorizado");
 
     // ------------------------------------------------------------------ the fixed-wait mode sends the same things
 
     [Fact]
     public void With_the_fixed_waits_the_same_is_sent()
     {
-        Check("parties-other", d => d.FillParties(Sender with { Payer = Payer.Other, PayerCnpj = "44444444000144" }),
-            adaptive: false);
+        CheckParties("parties-other", Sender with { Payer = Payer.Other, PayerCnpj = "44444444000144" }, adaptive: false);
         Check("cargo", d => d.FillCargo(new CargoInput("3")), adaptive: false);
         Check("taxes-pr", d => Assert.Equal(4321, d.FillTaxesAndTransmit(Pr, Critical)), adaptive: false);
         Check("taxes-mg-plain", d => Assert.Equal(4321, d.FillTaxesAndTransmit(Mg, Critical)), false,
-            "icms", "Obs2", "creditconfirmPopUp", "contingencia");
+            "valores_aba_icms", "valores_aba_observacoes", "transmissao_aviso_valor_credito", "transmissao_aviso_contingencia");
     }
 }

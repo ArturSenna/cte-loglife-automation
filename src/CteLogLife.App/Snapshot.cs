@@ -635,7 +635,7 @@ internal static class Snapshot
 
         // The bot stuck at a screen it does not know.
         var stuck = new Thread(() => control.WaitForOperator(new OperatorAttention("Tela desconhecida",
-            "O robô esperava o elemento \"finalizeEmission\" e ele não apareceu.\n"
+            "O robô esperava o elemento \"transmissao_numero_documento\" e ele não apareceu.\n"
             + "Resolva a tela no Bsoft e depois clique em Continuar.\n"
             + "O que você fizer nela fica gravado e é repetido quando ela aparecer de novo.",
             Path.Combine(folder, "overlay-Running.png"))));

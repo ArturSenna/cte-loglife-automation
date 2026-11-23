@@ -6,7 +6,8 @@ namespace CteLogLife.Bsoft;
 /// <summary>
 /// The Bsoft screen sequences, step for step what the Python bot did. Two rules were added: a required
 /// control that does not show up stops the run instead of letting the next keystrokes go to whatever is
-/// on screen, and a sender, receiver or payer is only confirmed when Bsoft's search found it.
+/// on screen, and a sender, receiver or payer is only confirmed when Bsoft's search found it (when it
+/// lists more than one company, the first row is taken).
 ///
 /// Everything before the point of no return is written as steps (<see cref="DesktopBot.Step"/>): one
 /// screen element and what is done on it. A pause never starts inside a step. The steps marked
@@ -41,27 +42,27 @@ public sealed class BsoftDriver(DesktopBot bot, IRunLog log) : IBsoftDriver, IDi
             log.Warn($"Não foi possível limpar a área de transferência: {ex.Message}");
         }
 
-        if (bot.Find("iniciarEmissao", M, 10))
+        if (bot.Find("emissao_incluir_f1", M, 10))
             bot.Act("Iniciar a emissão", () =>
             {
                 bot.Wait(500);
                 bot.Click();
             });
 
-        bot.Step("Abrir a busca do remetente", "searchSender", () => bot.ClickRelative(58, 40));
+        bot.Step("Abrir a busca do remetente", "remetente_codigo", () => bot.ClickRelative(58, 40));
         SearchCnpj(parties.SenderCnpjs, "remetente");
-        bot.Step("Confirmar o remetente", "confirmCNPJ", bot.Click);
+        bot.Step("Confirmar o remetente", "busca_cliente_confirmar", bot.Click);
 
-        bot.Step("Abrir a busca do destinatário", "searchReceiver", () => bot.ClickRelative(56, 36));
+        bot.Step("Abrir a busca do destinatário", "destinatario_codigo", () => bot.ClickRelative(56, 36));
         SearchCnpj(parties.ReceiverCnpjs, "destinatário");
-        bot.Step("Confirmar o destinatário", "confirmCNPJ", bot.Click);
+        bot.Step("Confirmar o destinatário", "busca_cliente_confirmar", bot.Click);
 
         switch (parties.Payer)
         {
             case Payer.Sender:
                 break;
             case Payer.Receiver:
-                bot.Step("Tomador: destinatário", "Tomador1", () =>
+                bot.Step("Tomador: destinatário", "tomador_resp_pagamento", () =>
                 {
                     bot.Click();
                     bot.Press(Key.Down);
@@ -69,53 +70,83 @@ public sealed class BsoftDriver(DesktopBot bot, IRunLog log) : IBsoftDriver, IDi
                 });
                 break;
             default:
-                bot.Step("Tomador: lista", "Tomador1", bot.Click);
-                bot.Step("Tomador: outros", "Others", bot.Click);
-                bot.Step("Abrir a busca do tomador", "searchPayer", () => bot.ClickRelative(132, 20));
-                bot.Step("CNPJ do tomador", "CNPJ_input", () =>
-                {
-                    bot.DoubleClickRelative(13, 24);
-                    bot.Wait(300);
-                    bot.PasteText(parties.PayerCnpj ?? "");
-                }, redo: true);
-                RequireSearchResult([parties.PayerCnpj ?? ""], "tomador");
-                bot.Step("Confirmar o tomador", "confirmCNPJ", bot.Click);
+                bot.Step("Tomador: lista", "tomador_resp_pagamento", bot.Click);
+                bot.Step("Tomador: outros", "tomador_opcao_outros", bot.Click);
+                bot.Step("Abrir a busca do tomador", "tomador_codigo", () => bot.ClickRelative(132, 20));
+                SearchCnpj([parties.PayerCnpj ?? ""], "tomador", waitBeforePasteMs: 300);
+                bot.Step("Confirmar o tomador", "busca_cliente_confirmar", bot.Click);
                 break;
         }
     }
 
-    /// <summary>Tries each CNPJ in Bsoft's search and stops at the first one it finds.</summary>
-    private void SearchCnpj(IReadOnlyList<string> cnpjs, string role)
+    // Bsoft's company search window ("Localização de Clientes e Fornecedores").
+    private const string CnpjField = "busca_cliente_campo_cnpj";
+    private const string OneResult = "busca_cliente_qtde_1";          // "Qtde.: 1" under the grid
+    private const string FirstRow = "busca_cliente_primeira_linha";   // the grid's row marker (▶) on the first row
+
+    /// <summary>From the top left of <see cref="FirstRow"/> to the middle of the first row's first cell.</summary>
+    internal const int FirstRowDx = 41, FirstRowDy = 28;
+
+    /// <summary>
+    /// Tries each CNPJ in Bsoft's search and stops at the first one that lists anything, with the first
+    /// row of the result clicked. One CNPJ can list several registrations (the same company registered
+    /// twice): the first one is taken. Nothing is confirmed when no CNPJ finds anything.
+    /// </summary>
+    /// <param name="waitBeforePasteMs">A pause between clicking into the field and pasting.</param>
+    private void SearchCnpj(IReadOnlyList<string> cnpjs, string role, int waitBeforePasteMs = 0)
     {
+        var rowsBefore = false;
         foreach (var cnpj in cnpjs)
         {
-            bot.Step($"CNPJ do {role}", "CNPJ_input", () =>
+            // Rows already in the grid before the CNPJ is typed did not come from it.
+            bot.Require(CnpjField);
+            rowsBefore = bot.Find(FirstRow, M, 0);
+
+            bot.Step($"CNPJ do {role}", CnpjField, () =>
             {
                 bot.DoubleClickRelative(13, 24);
+                if (waitBeforePasteMs > 0) bot.Wait(waitBeforePasteMs);
                 bot.PasteText(cnpj);
             }, redo: true);
-            if (bot.Find("Found1", M, 1500)) return;
+            if (SelectFirstResult(rowsBefore, 1500)) return;
         }
-        RequireSearchResult(cnpjs, role);
+
+        // A slow search gets a few more seconds; without a result nothing is confirmed.
+        if (SelectFirstResult(rowsBefore, 6000)) return;
+        throw new ElementNotFoundException(OneResult,
+            $"O Bsoft não localizou o {role} ({string.Join(", ", cnpjs)}). Confira o cadastro.");
     }
 
-    /// <summary>Gives a slow search a few more seconds; without a result nothing is confirmed.</summary>
-    private void RequireSearchResult(IReadOnlyList<string> cnpjs, string role)
+    /// <summary>
+    /// Waits for the search to answer and clicks the first row it lists. True when it found anything.
+    /// </summary>
+    /// <param name="rowsBefore">
+    /// The grid had rows before the CNPJ was typed. They may still be the old ones, so only "Qtde.: 1"
+    /// shows that this search answered (the only result the bot accepted before).
+    /// </param>
+    private bool SelectFirstResult(bool rowsBefore, int waitMs)
     {
-        if (bot.Find("Found1", M, 1500)) return;
-        if (bot.Find("Found1", M, 6000)) return;
-        throw new ElementNotFoundException("Found1",
-            $"O Bsoft não localizou o {role} ({string.Join(", ", cnpjs)}). Confira o cadastro.");
+        // Whichever comes first: "Qtde.: 1", or a first row without it (two or more results).
+        var one = rowsBefore
+            ? bot.Find(OneResult, M, waitMs)
+            : bot.FindBefore(OneResult, FirstRow, waitMs, waitMs);
+        if (rowsBefore && !one) return false;
+
+        // Bsoft already has the first row selected; the click makes sure of it. A single result whose
+        // row is not recognised is confirmed as it is, as before.
+        if (!bot.Find(FirstRow, M, one ? 500 : 0)) return one;
+        bot.Act("Selecionar o primeiro resultado da busca", () => bot.ClickRelative(FirstRowDx, FirstRowDy));
+        return true;
     }
 
     // ------------------------------------------------------------------ emission, tab 3
 
     public void FillCargo(CargoInput cargo)
     {
-        bot.Step("Aba da carga", "Part3", bot.Click);
-        bot.Step("Incluir a natureza da carga", "IncludeNat", bot.Click);
+        bot.Step("Aba da carga", "carga_aba_parte3", bot.Click);
+        bot.Step("Incluir a natureza da carga", "carga_incluir", bot.Click);
 
-        if (bot.Find("NF-e", M, 1000))
+        if (bot.Find("carga_modelo_nfe", M, 1000))
             bot.Act("Tipo de documento", () =>
             {
                 bot.Click();
@@ -123,9 +154,9 @@ public sealed class BsoftDriver(DesktopBot bot, IRunLog log) : IBsoftDriver, IDi
                 bot.Enter();
             });
 
-        // "Nat" and "Weight1" are the field labels: the inputs below them may still hold the previous
+        // "carga_campo_natureza" and "carga_campo_peso" are the field labels: the inputs below them may still hold the previous
         // emission's values. Click into the field under the label and select all before pasting.
-        bot.Step("Natureza da carga", "Nat", () =>
+        bot.Step("Natureza da carga", "carga_campo_natureza", () =>
         {
             ClickBelowLast();
             bot.SelectAll();
@@ -133,7 +164,7 @@ public sealed class BsoftDriver(DesktopBot bot, IRunLog log) : IBsoftDriver, IDi
             bot.Enter();
         }, redo: true);
 
-        bot.Step("Pesos e volumes", "Weight1", () =>
+        bot.Step("Pesos e volumes", "carga_campo_peso", () =>
         {
             ClickBelowLast();
             if (cargo.CteInstance is not (null or 1)) return;
@@ -153,51 +184,51 @@ public sealed class BsoftDriver(DesktopBot bot, IRunLog log) : IBsoftDriver, IDi
             bot.TypeKeys(cargo.Volumes); // Volumes
         }, redo: true);
 
-        bot.Step("Confirmar a natureza da carga", "confirmNAT", bot.Click);
+        bot.Step("Confirmar a natureza da carga", "carga_confirmar", bot.Click);
     }
 
     public void SelectOriginalCte(string originalCteNumber)
     {
-        if (bot.Find("iniciarEmissao", M, 10))
+        if (bot.Find("emissao_incluir_f1", M, 10))
             bot.Act("Iniciar a emissão", () =>
             {
                 bot.Wait(500);
                 bot.Click();
             });
 
-        bot.Step("Tipo de emissão: complementar", "emissionComp", () =>
+        bot.Step("Tipo de emissão: complementar", "complementar_finalidade_emissao", () =>
         {
             bot.ClickRelative(100, 30);
             bot.Press(Key.Down);
             bot.Enter();
         }, waitMs: 60000);
 
-        bot.Step("Aba da carga", "Part3", bot.Click, waitMs: 60000);
-        bot.Step("Incluir o CT-e original", "includeCTe", bot.Click, waitMs: 60000);
-        bot.Step("Abrir a busca do CT-e original", "searchCTe", () => bot.ClickRelative(-37, 24), waitMs: 60000);
+        bot.Step("Aba da carga", "carga_aba_parte3", bot.Click, waitMs: 60000);
+        bot.Step("Incluir o CT-e original", "complementar_incluir_cte", bot.Click, waitMs: 60000);
+        bot.Step("Abrir a busca do CT-e original", "complementar_abrir_busca", () => bot.ClickRelative(-37, 24), waitMs: 60000);
 
-        bot.Step("Período da busca", "clearDate", () =>
+        bot.Step("Período da busca", "complementar_busca_periodo", () =>
         {
             bot.ClickRelative(175, 43);
             bot.Press(Key.Up);
             bot.Enter();
         }, waitMs: 60000);
 
-        bot.Step("Número do CT-e original", "inputCTE", () =>
+        bot.Step("Número do CT-e original", "complementar_busca_numero", () =>
         {
             bot.ClickRelative(66, 35);
             bot.TypeKey(originalCteNumber);
         }, waitMs: 60000);
 
-        bot.Step("Localizar o CT-e original", "findCTe", bot.Click, waitMs: 60000);
+        bot.Step("Localizar o CT-e original", "complementar_busca_localizar", bot.Click, waitMs: 60000);
 
-        bot.Step("Selecionar o CT-e original", "selectAll", () =>
+        bot.Step("Selecionar o CT-e original", "complementar_busca_marcar_todos", () =>
         {
             bot.Click();
             bot.Wait(300);
         }, waitMs: 60000);
 
-        bot.Step("Confirmar o CT-e original", "confirmCTE", () =>
+        bot.Step("Confirmar o CT-e original", "complementar_busca_confirmar", () =>
         {
             bot.Click();
             bot.Wait(300);
@@ -210,18 +241,18 @@ public sealed class BsoftDriver(DesktopBot bot, IRunLog log) : IBsoftDriver, IDi
     {
         LastNumberHint = null;
 
-        bot.Step("Aba de valores", "part4", bot.Click, waitMs: 30000);
+        bot.Step("Aba de valores", "valores_aba_parte4", bot.Click, waitMs: 30000);
 
-        bot.Step("Valor do frete", "valueShipping22", () =>
+        bot.Step("Valor do frete", "valores_frete_valor", () =>
         {
             bot.Click();
             bot.Tab();
             bot.TypeKey(tax.Price);
         });
 
-        if (bot.Find("icms", M, 500)) bot.Act("Abrir o ICMS", bot.Click);
+        if (bot.Find("valores_aba_icms", M, 500)) bot.Act("Abrir o ICMS", bot.Click);
 
-        bot.Step("CST e alíquota do ICMS", "CST", () =>
+        bot.Step("CST e alíquota do ICMS", "valores_icms_cst", () =>
         {
             bot.ClickRelative(9, 8);
             bot.Tab();
@@ -250,13 +281,13 @@ public sealed class BsoftDriver(DesktopBot bot, IRunLog log) : IBsoftDriver, IDi
             bot.Enter();
         });
 
-        bot.Step("Aba IBS/CBS", "ibs-cbs", () =>
+        bot.Step("Aba IBS/CBS", "valores_aba_ibs_cbs", () =>
         {
             bot.Click();
             bot.Wait(200);
         });
 
-        bot.Step("CST do IBS/CBS", "ibs-cst", () =>
+        bot.Step("CST do IBS/CBS", "valores_ibs_cbs_cst", () =>
         {
             ClickBelowLast();
             bot.Click();
@@ -268,8 +299,8 @@ public sealed class BsoftDriver(DesktopBot bot, IRunLog log) : IBsoftDriver, IDi
             bot.Enter();
         });
 
-        if (bot.Find("Obs2", M, 250)) bot.Act("Aba de observações", bot.Click);
-        bot.Step("Observação do ICMS", "Obs3", () =>
+        if (bot.Find("valores_aba_observacoes", M, 250)) bot.Act("Aba de observações", bot.Click);
+        bot.Step("Observação do ICMS", "valores_campo_observacao", () =>
         {
             bot.Click();
             bot.PasteText(tax.IcmsText);
@@ -277,9 +308,9 @@ public sealed class BsoftDriver(DesktopBot bot, IRunLog log) : IBsoftDriver, IDi
 
         if (GnreStates.Contains(tax.Uf))
         {
-            bot.Step("Observações do tomador", "payerObs", bot.RightClick);
+            bot.Step("Observações do tomador", "valores_obs_contribuinte", bot.RightClick);
 
-            bot.Step("Informação do GNRE", "include_tp_info", () =>
+            bot.Step("Informação do GNRE", "valores_obs_contribuinte_incluir", () =>
             {
                 bot.Click();
                 bot.PasteText("GNRE_ICMSST");
@@ -287,7 +318,7 @@ public sealed class BsoftDriver(DesktopBot bot, IRunLog log) : IBsoftDriver, IDi
                 bot.PasteText(tax.TpInfo);
             });
 
-            bot.Step("Confirmar a informação do GNRE", "confirm_tp_info", bot.Click);
+            bot.Step("Confirmar a informação do GNRE", "valores_obs_contribuinte_confirmar", bot.Click);
         }
 
         // The last place where a pause can start: after it the CT-e is sent.
@@ -302,45 +333,45 @@ public sealed class BsoftDriver(DesktopBot bot, IRunLog log) : IBsoftDriver, IDi
 
             if (tax.Uf != "MG")
             {
-                bot.Require("zeroValue");
+                bot.Require("transmissao_aviso_icms_zero");
                 bot.Enter();
             }
 
             if (tax.Complementary)
             {
-                if (bot.FindBefore("confirmValue", "finalizeEmission", 10000, 70000)) bot.Enter();
-                else log.Warn("Elemento 'confirmValue' não apareceu; seguindo sem confirmar o valor.");
+                if (bot.FindBefore("transmissao_aviso_valores_alterados", "transmissao_numero_documento", 10000, 70000)) bot.Enter();
+                else log.Warn("Elemento 'transmissao_aviso_valores_alterados' não apareceu; seguindo sem confirmar o valor.");
             }
 
-            bot.Require("finalizeEmission", 60000);
+            bot.Require("transmissao_numero_documento", 60000);
             bot.ClickRelative(bot.Last.Width / 2.0, 1.5 * bot.Last.Height);
             bot.Tab();
             bot.Tab();
             bot.Enter();
 
-            if (bot.FindBefore("creditconfirmPopUp", "secondPopUp", 3000, 13000))
+            if (bot.FindBefore("transmissao_aviso_valor_credito", "transmissao_pergunta_incluir_cte", 3000, 13000))
             {
                 bot.Press(Key.Right);
                 bot.Enter();
             }
 
-            bot.Require("secondPopUp");
+            bot.Require("transmissao_pergunta_incluir_cte");
             bot.Press(Key.Right);
             bot.Enter();
 
-            bot.Require("thirdPopUp");
+            bot.Require("transmissao_botao_mdfe");
             bot.Press(Key.Right);
             bot.Press(Key.Right);
             bot.Press(Key.Right);
             bot.Enter();
 
-            bot.Require("fourthPopUp");
+            bot.Require("transmissao_pergunta_gerar_cte");
             bot.Press(Key.Left);
             bot.Enter();
 
-            if (bot.FindBefore("contingencia", "fifthPopUp", 5000, 65000)) bot.Enter();
+            if (bot.FindBefore("transmissao_aviso_contingencia", "transmissao_impressao_vias", 5000, 65000)) bot.Enter();
 
-            bot.Require("fifthPopUp", 60000);
+            bot.Require("transmissao_impressao_vias", 60000);
             bot.Press(Key.F10);
             bot.Wait(2000);
         }
@@ -366,9 +397,9 @@ public sealed class BsoftDriver(DesktopBot bot, IRunLog log) : IBsoftDriver, IDi
         {
             try
             {
-                if (!bot.Find("clicarCte", M, attempt == 1 ? 10000 : 3000))
+                if (!bot.Find("transmissao_numero_cte", M, attempt == 1 ? 10000 : 3000))
                 {
-                    log.Warn("Elemento 'clicarCte' não encontrado.");
+                    log.Warn("Elemento 'transmissao_numero_cte' não encontrado.");
                     continue;
                 }
                 // Clear first: only a value that shows up after this point can be the number.
@@ -421,14 +452,14 @@ public sealed class BsoftDriver(DesktopBot bot, IRunLog log) : IBsoftDriver, IDi
         // CT-e that turned out to be cancelled already, or a run that stopped there, Bsoft is still on
         // Consultas: the tab looks different, and there is nothing to click because its search field
         // is already on screen. So the field showing up without the tab ends the wait.
-        if (bot.FindBefore("2consultas", "10ClicarBordaInferior", 30000, 30000))
+        if (bot.FindBefore("cancelamento_aba_consultas", "cancelamento_campo_numero_cte", 30000, 30000))
             bot.Act("Consultas", () =>
             {
                 bot.Click();
                 bot.Wait(500);
             });
 
-        bot.Step("Número do CT-e na busca", "10ClicarBordaInferior", () =>
+        bot.Step("Número do CT-e na busca", "cancelamento_campo_numero_cte", () =>
         {
             // Clear the search field, then type the number.
             var field = bot.Last;
@@ -443,13 +474,13 @@ public sealed class BsoftDriver(DesktopBot bot, IRunLog log) : IBsoftDriver, IDi
             bot.Wait(200);
         }, redo: true, waitMs: 5000);
 
-        bot.Step("Localizar o CT-e", "4Localizar", () =>
+        bot.Step("Localizar o CT-e", "cancelamento_localizar", () =>
         {
             bot.Click();
             bot.Wait(200);
         }, waitMs: 5000);
 
-        if (bot.Find("5duploClickStatus", M, 5000))
+        if (bot.Find("cancelamento_status_autorizado", M, 5000))
         {
             bot.Act("Abrir o CT-e", () =>
             {
@@ -457,14 +488,14 @@ public sealed class BsoftDriver(DesktopBot bot, IRunLog log) : IBsoftDriver, IDi
                 bot.Wait(200);
             });
 
-            if (bot.Find("5.1ct-e", M, 10000))
+            if (bot.Find("cancelamento_menu_cte", M, 10000))
                 bot.Act("Menu do CT-e", () =>
                 {
                     bot.Click();
                     bot.Wait(200);
                 });
 
-            bot.Step("Justificativa do cancelamento", "5.2Cancelar_CTE", () =>
+            bot.Step("Justificativa do cancelamento", "cancelamento_opcao_cancelar", () =>
             {
                 bot.Click();
                 bot.Wait(200);
@@ -473,21 +504,21 @@ public sealed class BsoftDriver(DesktopBot bot, IRunLog log) : IBsoftDriver, IDi
                 bot.Wait(200);
             });
 
-            bot.Require("8confirmar");
+            bot.Require("cancelamento_confirmar");
             pointOfNoReturn();
             bot.Click();
             bot.Wait(200);
 
             // The answer comes from the tax authority and can take a while. Giving up early would report
             // an error for a CT-e that then gets cancelled, and leave its message open on the screen.
-            if (!bot.Find("9-sucesso", M, 60000))
+            if (!bot.Find("cancelamento_sucesso", M, 60000))
                 throw new InvalidOperationException(
-                    "A mensagem de cancelamento realizado ('9-sucesso') não apareceu: confira no Bsoft se o CT-e foi cancelado.");
+                    "A mensagem de cancelamento realizado ('cancelamento_sucesso') não apareceu: confira no Bsoft se o CT-e foi cancelado.");
             bot.Enter();
             return true;
         }
 
-        if (bot.Find("cancelled", M, 5000)) return false;
+        if (bot.Find("cancelamento_ja_cancelado", M, 5000)) return false;
         throw new InvalidOperationException($"CT-e {cteNumber} não encontrado ou status desconhecido.");
     }
 
@@ -498,9 +529,9 @@ public sealed class BsoftDriver(DesktopBot bot, IRunLog log) : IBsoftDriver, IDi
         var emission = DateTime.ParseExact(slip.EmissionDate, "dd/MM/yyyy", CultureInfo.InvariantCulture);
         var changeDates = emission.Date != DateTime.Today;
 
-        bot.Step("Nova guia", "icms_start", bot.Click, waitMs: 30000);
+        bot.Step("Nova guia", "guia_icms_incluir_f1", bot.Click, waitMs: 30000);
 
-        bot.Step("Documento da guia", "icms_document", () =>
+        bot.Step("Documento da guia", "guia_icms_documento", () =>
         {
             ClickBelowLast();
             bot.Wait(200);
@@ -517,13 +548,13 @@ public sealed class BsoftDriver(DesktopBot bot, IRunLog log) : IBsoftDriver, IDi
 
         if (changeDates)
         {
-            bot.Step("Data de emissão da guia", "icms_emission_date", () =>
+            bot.Step("Data de emissão da guia", "guia_icms_data_emissao", () =>
             {
                 bot.DoubleClickRelative(bot.Last.Width / 2.0, 1.5 * bot.Last.Height);
                 bot.TypeKeys(slip.EmissionDate);
             });
 
-            bot.Step("Data de pagamento e valor da guia", "icms_payment_date", () =>
+            bot.Step("Data de pagamento e valor da guia", "guia_icms_data_movimento", () =>
             {
                 bot.DoubleClickRelative(bot.Last.Width / 2.0, 1.5 * bot.Last.Height);
                 bot.TypeKeys(slip.EmissionDate);
@@ -532,7 +563,7 @@ public sealed class BsoftDriver(DesktopBot bot, IRunLog log) : IBsoftDriver, IDi
             });
         }
 
-        bot.Step("Fornecedor da guia", "icms_state", () =>
+        bot.Step("Fornecedor da guia", "guia_icms_codigo_fornecedor", () =>
         {
             bot.ClickAt(bot.Last.Left + bot.Last.Width / 2, bot.Last.Top + bot.Last.Height);
             bot.Wait(200);
@@ -540,7 +571,7 @@ public sealed class BsoftDriver(DesktopBot bot, IRunLog log) : IBsoftDriver, IDi
             bot.Enter();
         });
 
-        bot.Step("Centro de custo da guia", "icms_cost_center", () =>
+        bot.Step("Centro de custo da guia", "guia_icms_centro_custo", () =>
         {
             bot.DoubleClickRelative(bot.Last.Width / 2, bot.Last.Height);
             bot.Wait(300);
@@ -548,9 +579,9 @@ public sealed class BsoftDriver(DesktopBot bot, IRunLog log) : IBsoftDriver, IDi
             bot.Enter();
         });
 
-        bot.Step("Aba de pagamento da guia", "icms_payment", bot.Click, waitMs: 30000);
+        bot.Step("Aba de pagamento da guia", "guia_icms_pre_cadastrada", bot.Click, waitMs: 30000);
 
-        bot.Step("Banco da guia", "icms_bank", () =>
+        bot.Step("Banco da guia", "guia_icms_local_cobranca", () =>
         {
             ClickBelowLast();
             bot.Wait(200);
@@ -558,7 +589,7 @@ public sealed class BsoftDriver(DesktopBot bot, IRunLog log) : IBsoftDriver, IDi
             bot.Enter();
         });
 
-        bot.Step("Código de barras da guia", "icms_barcode", () =>
+        bot.Step("Código de barras da guia", "guia_icms_codigo_barras", () =>
         {
             ClickBelowLast();
             bot.Wait(200);
@@ -566,14 +597,14 @@ public sealed class BsoftDriver(DesktopBot bot, IRunLog log) : IBsoftDriver, IDi
             bot.Enter();
         });
 
-        bot.Step("Observação da guia", "icms_obs", () =>
+        bot.Step("Observação da guia", "guia_icms_observacao", () =>
         {
             bot.Click();
             bot.Wait(200);
             bot.PasteText($"REF. A ICMS ST {slip.EmissionDate}");
         });
 
-        bot.Step("Confirmar a guia", "icms_confirm", () =>
+        bot.Step("Confirmar a guia", "guia_icms_confirmar", () =>
         {
             bot.Click();
             bot.Wait(500);
