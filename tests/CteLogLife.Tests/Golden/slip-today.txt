@@ -55,7 +55,7 @@ up Control
 tap Enter
 move 1294,351
 click
-clipboard REF. A ICMS ST 18/11/2026
+clipboard REF. A ICMS ST {hoje}
 down Control
 char v
 up Control

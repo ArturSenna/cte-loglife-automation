@@ -48,16 +48,22 @@ public class DriverSequenceTests : IDisposable
             _control.EndCritical();
         }
 
+        // Today's date (the ICMS slip dated today) is kept as a mark, so the recording holds on any day.
+        var today = DateTime.Today.ToString("dd/MM/yyyy");
+        var events = desktop.Events.Select(e => e.Replace(today, TodayMark)).ToList();
+
         var path = Path.Combine(GoldenFolder(), name + ".txt");
         if (Environment.GetEnvironmentVariable("CTE_WRITE_GOLDEN") == "1")
         {
             Directory.CreateDirectory(GoldenFolder());
-            File.WriteAllLines(path, desktop.Events);
+            File.WriteAllLines(path, events);
             return;
         }
         Assert.True(File.Exists(path), $"sem sequência gravada: {path}");
-        Assert.Equal(File.ReadAllLines(path), desktop.Events);
+        Assert.Equal(File.ReadAllLines(path), events);
     }
+
+    private const string TodayMark = "{hoje}";
 
     private void Critical() => _control.BeginCritical();
 

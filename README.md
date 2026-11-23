@@ -25,8 +25,9 @@ publicado. Um push que não muda a versão não faz nada.
 
 As cópias instaladas consultam o release mais recente, comparam a tag com a própria versão e baixam o
 `.exe` que tem "setup" no nome: **a partir da publicação, todas oferecem a atualização** a quem abrir o
-programa. O texto do release é o que aparece em "Novidades" nesse aviso; ele nasce com a lista do que
-entrou desde o release anterior e pode ser editado na página do release. Para segurar uma versão já
+programa. O texto do release é o que aparece em "Novidades" nesse aviso: a seção da versão em
+`CHANGELOG.md` (escreva-a junto com a subida da versão) ou, se ela não existir, a lista do que entrou
+desde o release anterior. Ele pode ser editado na página do release. Para segurar uma versão já
 publicada, marque o release como **pre-release**: ele deixa de ser oferecido.
 
 Na aba Actions, "Run workflow" roda o mesmo processo à mão. Com "publish" desligado (o padrão) ele só
