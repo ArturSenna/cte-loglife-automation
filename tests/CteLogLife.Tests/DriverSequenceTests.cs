@@ -31,14 +31,12 @@ public class DriverSequenceTests : IDisposable
     private void CheckParties(string name, PartiesInput parties, bool adaptive = true, params string[] without) =>
         Run(name, d => d.FillParties(parties), adaptive, searchResult: true, without);
 
-    private void Run(string name, Action<BsoftDriver> work, bool adaptive, bool searchResult, string[] without)
+    /// <summary>Everything the driver sends while doing <paramref name="work"/> on that screen.</summary>
+    private List<string> Events(FakeScreen screen, Action<BsoftDriver> work, bool adaptive = true)
     {
         var desktop = new FakeDesktop();
         using var driver = new BsoftDriver(
-            new DesktopBot(_templates, DriverScreen.Build(_templates, searchResult, without), _control, _log, desktop: desktop)
-            {
-                Adaptive = adaptive,
-            }, _log);
+            new DesktopBot(_templates, screen, _control, _log, desktop: desktop) { Adaptive = adaptive }, _log);
         try
         {
             work(driver);
@@ -47,10 +45,15 @@ public class DriverSequenceTests : IDisposable
         {
             _control.EndCritical();
         }
+        return desktop.Events;
+    }
 
+    private void Run(string name, Action<BsoftDriver> work, bool adaptive, bool searchResult, string[] without)
+    {
         // Today's date (the ICMS slip dated today) is kept as a mark, so the recording holds on any day.
         var today = DateTime.Today.ToString("dd/MM/yyyy");
-        var events = desktop.Events.Select(e => e.Replace(today, TodayMark)).ToList();
+        var events = Events(DriverScreen.Build(_templates, searchResult, without), work, adaptive)
+            .Select(e => e.Replace(today, TodayMark)).ToList();
 
         var path = Path.Combine(GoldenFolder(), name + ".txt");
         if (Environment.GetEnvironmentVariable("CTE_WRITE_GOLDEN") == "1")
@@ -153,6 +156,28 @@ public class DriverSequenceTests : IDisposable
     [Fact]
     public void A_cte_that_is_already_cancelled_is_only_looked_up() =>
         Check("cancel-already", d => Assert.False(d.CancelCte("98765", Critical)), true, "cancelamento_status_autorizado");
+
+    // ------------------------------------------------------------------ controls that have the keyboard
+
+    [Fact]
+    public void Icms_slip_when_the_keyboard_is_already_on_two_of_its_fields()
+    {
+        // Enter in the cost centre leaves the keyboard on "Pré-cadastrada", and Enter in the bar code
+        // leaves it on "Observação"; Bsoft draws both differently then. The slip has to go through with
+        // the very same keys and clicks, the two fields being clicked where that look of them is.
+        string[] focused = ["guia_icms_pre_cadastrada-alt2", "guia_icms_observacao-alt2"];
+        var slip = Slip(new DateTime(2020, 3, 14));
+
+        var usual = Events(DriverScreen.Build(_templates), d => d.EnterIcmsSlip(slip));
+        var withFocus = Events(DriverScreen.BuildWithLooks(_templates, focused, out var places),
+            d => d.EnterIcmsSlip(slip));
+
+        Assert.Equal(usual.Count, withFocus.Count);
+        var changed = Enumerable.Range(0, usual.Count).Where(i => usual[i] != withFocus[i]).Select(i => withFocus[i]);
+        Assert.Equal(
+            focused.Select(look => $"move {places[look].X + places[look].Width / 2},{places[look].Y + places[look].Height / 2}"),
+            changed);
+    }
 
     // ------------------------------------------------------------------ the fixed-wait mode sends the same things
 

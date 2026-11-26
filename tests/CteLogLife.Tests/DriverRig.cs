@@ -240,4 +240,31 @@ public static class DriverScreen
                 screen.Show(templates.Image(label)!, place.X, place.Y);
         return screen;
     }
+
+    /// <summary>
+    /// The screen of <see cref="Build"/> with some controls showing another of their looks: each name
+    /// in <paramref name="looks"/> is an alternate image ("label-alt2"), shown instead of the usual
+    /// image of its label. The other looks go under everything else, so nothing else moves.
+    /// </summary>
+    /// <param name="places">Where each of the other looks is.</param>
+    public static FakeScreen BuildWithLooks(TemplateStore templates, IReadOnlyList<string> looks,
+        out Dictionary<string, Rect> places)
+    {
+        var usual = Layout(templates, out var height);
+        places = [];
+        foreach (var look in looks)
+        {
+            var image = templates.Image(look) ?? throw new InvalidOperationException($"sem imagem para '{look}'");
+            places[look] = new Rect(20, height, image.Width, image.Height);
+            height += image.Height + 30;
+        }
+
+        var replaced = looks.Select(look => look[..look.LastIndexOf("-alt", StringComparison.Ordinal)]).ToHashSet();
+        var screen = new FakeScreen(Width, height);
+        foreach (var (label, place) in usual)
+            if (!replaced.Contains(label) && label != SearchResultRow)
+                screen.Show(templates.Image(label)!, place.X, place.Y);
+        foreach (var (look, place) in places) screen.Show(templates.Image(look)!, place.X, place.Y);
+        return screen;
+    }
 }

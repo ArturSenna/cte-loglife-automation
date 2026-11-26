@@ -137,6 +137,35 @@ public class TemplateTests : IDisposable
         Assert.Equal(new ScreenBox(857, 522, message.Width, message.Height), _bot.Last);
     }
 
+    [Theory]
+    [InlineData("guia_icms_pre_cadastrada")]
+    [InlineData("guia_icms_observacao")]
+    public void A_field_of_the_slip_dialog_is_recognised_while_the_keyboard_is_on_it(string label)
+    {
+        // Enter in the field before leaves the keyboard on these two, and Windows then draws a dotted
+        // rectangle around "Pré-cadastrada" and a blue border on "Observação". The images taken
+        // without it score 0.965 and 0.84 on that look, below what counts as found: the slip stopped
+        // at each of them until the operator clicked somewhere else (captures of 26/11/2026).
+        Assert.Equal([label, label + "-alt", label + "-alt2"], _store.Candidates(label));
+        var focused = _store.Image(label + "-alt2")!;
+        _screen.Show(focused, 731, 690);
+
+        Assert.True(_bot.Find(label, 0.97, 10));
+        Assert.Equal(new ScreenBox(731, 690, focused.Width, focused.Height), _bot.Last);
+    }
+
+    [Theory]
+    [InlineData("guia_icms_observacao-alt")]
+    [InlineData("guia_icms_observacao-alt2")]
+    public void The_click_on_the_observation_of_a_slip_lands_inside_the_text_box(string look)
+    {
+        // These images hold the label and the top of the text box (the label alone is on screen twice).
+        // The bot clicks the middle of what it found, so the middle has to be inside the box: white,
+        // where the label's row is grey.
+        var image = _store.Image(look)!;
+        Assert.Equal(new Vec3b(255, 255, 255), image.At<Vec3b>(image.Height / 2, image.Width / 2));
+    }
+
     [Fact]
     public void Find_keeps_looking_until_the_control_shows_up()
     {

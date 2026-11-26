@@ -8,6 +8,10 @@ Para uma versão nova: suba `<Version>` em `Directory.Build.props` e acrescente 
 `## [x.y.z] - AAAA-MM-DD`. Sem seção para a versão, o release usa a lista automática do GitHub.
 Versões anteriores à 2.0.3: veja os releases no GitHub.
 
+## [2.0.4] - 2026-11-26
+
+- Corrigido: ao lançar guias de ICMS, o robô parava em "Pré-cadastrada" e em "Observação" avisando de tela desconhecida, e só continuava quando o operador clicava fora do campo. Agora ele reconhece esses dois campos também quando o cursor do teclado já está neles.
+
 ## [2.0.3] - 2026-11-23
 
 - Corrigido: na busca do remetente, do destinatário e do tomador, quando o CNPJ tem mais de um cadastro no Bsoft (a busca mostra "Qtde.: 2" ou mais), o robô parava dizendo que não localizou a empresa. Agora ele clica no primeiro resultado da lista e confirma.
